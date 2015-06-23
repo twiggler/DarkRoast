@@ -5,6 +5,13 @@
 namespace DarkRoast;
 
 interface IDarkRoast {
+	/**
+	 * Execute the build query and returns the result as an array.
+	 * When the query contains placeholders, pass the unbound arguments. Each placeholder
+	 * _N is replaced by the Nth argument.
+	 * @param mixed ...$bindings Bound values for placeholders.
+	 * @return array Result tuple.
+	 */
 	public function execute(...$bindings);
 }
 
@@ -107,6 +114,13 @@ class Query {
         return $provider->prepareQuery($this->selectors, $this->filter, $this->offset, $this->limit, $this->sortFields);
     }
 
+	/**
+	 * Shorthand to build and execute query.
+	 * @param mixed ...$params First argument must be a Data Provider; other arguments are forwarded to IDarkRoast::execute
+	 * @see Query::build
+	 * @see IDarkRoast::execute
+	 * @return array Result tuple
+	 */
 	public function execute(...$params) {
 		$darkRoast = $this->build(array_shift($params));
 		return $darkRoast->execute(...$params);

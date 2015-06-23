@@ -35,9 +35,9 @@ list($recipe, $tag) = $provider->reflectTable('recipe', 'recipe_tag');
 ```
 The objects `$recipe` and `$tag` now contain public member fields representing Dark Roast *fields*; these fields can now be used in Dark Roast expressions. 
 
-See the demo `demo/basic.php` for a in-depth example.      
+See the [basic demo](demo/basic.php) for a in-depth example.      
 
 ## Aggregates
 Dark Roast supports aggregation of data over grouping variables. Call one of the aggregation functions `max`, `min`, `sum`, or `count` on fields in the select clause. Fields without an aggregation function are taken to be grouping variables over which the aggregations is applied.
 
-See the demo `demo/aggregates.php` for an example.
+See the [aggregates demo](demo/aggregates.php) for an example.

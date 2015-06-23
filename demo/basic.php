@@ -14,7 +14,7 @@ $pdo = new PDO('mysql:host=localhost; dbname=recipe', "dev", "Ig8ajGd1vtZZSaa99k
 $provider = new DataProvider($pdo);
 list($recipe, $tag) = $provider->reflectTable('recipe', 'recipe_tag');
 
-$params = array('offset' => 0, 'tag' => array(38, 39), 'video' => 'ja', 'limit' => 7, 'maxcookingtime' => 1);
+$params = array('offset' => 0, 'tag' => array(38, 39), 'video' => 'ja', 'limit' => 7);
 
 $query = select($recipe->id,
                 $recipe->title,
@@ -25,17 +25,19 @@ $query = select($recipe->id,
 $cookingTime = sum($recipe->prep_time, $recipe->cook_time, $recipe->prove_time, $recipe->marinate_time,
                    $recipe->rest_time, $recipe->chill_time, $recipe->soak_time);    // Define a new field
 
-if (isset($params['maxcookingtime']))
-	$query->where($cookingTime->lessThan(Placeholders::$_1)); // The placeholder is bound on query execution.
 if (isset($params['maxcalories']))
-	$query->_and($recipe->kcals->lessThan($params['maxcalories'])); // Query::_and calls Query::where when no filter is set.
+	$query->where($recipe->kcals->lessThan($params['maxcalories']));
+
+// The placeholder is bound on query execution.
+// Query::_and calls Query::where when no filter is set.
+$query->_and($cookingTime->lessThan(Placeholders::$_1));
 
 $query->_and($recipe->group->equals(coalesce($params, 'group',
                                              null))); // Filter is optimized away when operand is null.
 
 
 $query->_and($recipe->video->equals(isset($params['video']) ? 1 : null),
-			 $recipe->id->isDefined());     // Multiple filter expressions are joined using the and operator
+             $recipe->id->isDefined());     // Multiple filter expressions are by default combined using the and operator
 
 if (isset($params['tag'])) {
 	foreach ($params['tag'] as $tagId) {
