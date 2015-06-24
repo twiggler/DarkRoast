@@ -149,13 +149,11 @@ class SortedField implements IQueryPart {
 
 abstract class Filter implements IQueryPart, IFilter  {
 	public function _and($condition) {
-		return get_class($condition) !== 'DarkRoast\DataBase\NullFilter' ? new BinaryFilterExpression($this, $condition, "AND",
-		                                                                           true) : $this;
+		return new BinaryFilterExpression($this, $condition, "AND", true);
 	}
 
 	public function _or($condition) {
-		return get_class($condition) !== 'NullFilter\DataBase\NullFilter' ? new BinaryFilterExpression($this, $condition, "OR",
-		                                                                           true) : $this;
+		return new BinaryFilterExpression($this, $condition, "OR", true);
 	}
 
 	public function exists() {
@@ -213,17 +211,19 @@ class BinaryFilterExpression extends Filter {
 	}
 
 	public function evaluate(SqlQueryBuilder $queryBuilder) {
-		$part = $this->operand1->evaluate($queryBuilder) . " {$this->operator} ";
-		if ($this->indent) $part .= $queryBuilder->indent(1);
+		$part1 = $this->operand1->evaluate($queryBuilder);
 
 		if (is_string($this->operand2) or is_numeric($this->operand2))
-			$part .= $queryBuilder->addBinding($this->operand2);
+			$part2 = $queryBuilder->addBinding($this->operand2);
 		elseif (is_object($this->operand2) and get_class($this->operand2) === 'DarkRoast\Placeholder')
-			$part .= ":_" . $this->operand2->index();
+			$part2 = ":_" . $this->operand2->index();
 		else
-			$part .= $this->operand2->evaluate($queryBuilder);
+			$part2 = $this->operand2->evaluate($queryBuilder);
 
-		return $part;
+		if ($part1 !== '' and $part2 !== '')
+			return $part1 . " {$this->operator}" . ($this->indent ? $queryBuilder->indent(1) : ' ') . $part2;
+		else
+			return $part1 . $part2;
 	}
 
 	private $operand1;
