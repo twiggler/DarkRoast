@@ -28,9 +28,9 @@ interface IFieldExpression {
 
 	public function rename($alias);
 
-	public function ascending();
+	public function sortAscending();
 
-	public function descending();
+	public function sortDescending();
 
 	public function sum();
 
@@ -41,6 +41,10 @@ interface IFieldExpression {
 	public function count();
 
 	public function countUnique();
+}
+
+interface IBuilder {
+	public function build($selectors, $filter = null, $groupFilter = null, $offset = 0, $limit = null);
 }
 
 interface IFilter
@@ -94,24 +98,30 @@ class Query {
         return $this;
     }
 
-    public function where(...$conditions) {
+    public function filter(...$conditions) {
 		$this->filter = null;
 		$this->_and(...$conditions);
 
         return $this;
     }
 
-    public function _or(...$conditions) {
-        return $this->addConditions($conditions, "_or");
+	public function groupFilter(...$conditions) {
+		$this->groupFilter = null;
+		$this->addConditions($conditions, "_and", $this->groupFilter);
 
+		return $this;
+	}
+
+    public function _or(...$conditions) {
+        return $this->addConditions($conditions, "_or", $this->filter);
     }
 
     public function _and(...$conditions) {
-        return $this->addConditions($conditions, "_and");
+        return $this->addConditions($conditions, "_and", $this->filter);
     }
 
-    public function build($provider) {
-        return $provider->prepareQuery($this->selectors, $this->filter, $this->offset, $this->limit, $this->sortFields);
+    public function build(IBuilder $builder) {
+        return $builder->build($this->selectors, $this->filter, $this->groupFilter, $this->offset, $this->limit);
     }
 
 	/**
@@ -146,15 +156,9 @@ class Query {
         return $this;
     }
 
-    public function orderBy(...$sortFields) {
-        $this->sortFields = array_merge($this->sortFields, $sortFields);
-
-        return $this;
-    }
-
-    private function addConditions($conditions, $logicalOperator) {
-        $firstCondition = isset($this->filter) ? $this->filter : array_shift($conditions);
-	    $this->filter = array_reduce($conditions, function($filter, $condition) use($logicalOperator) {
+    private function addConditions($conditions, $logicalOperator, &$targetFilter) {
+        $firstCondition = isset($targetFilter) ? $targetFilter : array_shift($conditions);
+	    $targetFilter = array_reduce($conditions, function($filter, $condition) use($logicalOperator) {
 		    return $filter->$logicalOperator($condition);
 	    }, $firstCondition);
 
@@ -162,12 +166,16 @@ class Query {
     }
 
     private $selectors = [];
-    private $filter;
-    private $offset;
-    private $limit;
-    private $sortFields = [];
+    private $filter = null;
+	private $groupFilter = null;
+    private $offset = 0;
+    private $limit = null;
 }
 
+/**
+ * @param ...$fields
+ * @return Query
+ */
 function select(...$fields) {
     $query = new Query();
 

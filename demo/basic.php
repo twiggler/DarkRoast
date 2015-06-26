@@ -16,7 +16,7 @@ list($recipe, $tag) = $provider->reflectTable('recipe', 'recipe_tag');
 
 $params = array('offset' => 0, 'tag' => array(38, 39), 'video' => 'ja', 'limit' => 7);
 
-$query = select($recipe->id,
+$query = select($recipe->id->sortAscending(),
                 $recipe->title,
                 $recipe->image_url->rename('imageUrl'),     // Field is designated 'imageUrl' in result tuple
                 $recipe->summary,
@@ -26,10 +26,10 @@ $cookingTime = sum($recipe->prep_time, $recipe->cook_time, $recipe->prove_time, 
                    $recipe->rest_time, $recipe->chill_time, $recipe->soak_time);    // Define a new field
 
 if (isset($params['maxcalories']))
-	$query->where($recipe->kcals->lessThan($params['maxcalories']));
+	$query->filter($recipe->kcals->lessThan($params['maxcalories']));
 
 // The placeholder is bound on query execution.
-// Query::_and calls Query::where when no filter is set.
+// Query::_and calls Query::filter when no filter is set.
 $query->_and($cookingTime->lessThan(Placeholders::$_1));
 
 $query->_and($recipe->group->equals(coalesce($params, 'group',
@@ -47,8 +47,7 @@ if (isset($params['tag'])) {
 	}
 }
 
-$query->orderBy($recipe->id)
-      ->offset($params['offset'])
+$query->offset($params['offset'])
       ->limit(coalesce($params, 'limit'));
 
 $darkRoast = $query->build($provider);

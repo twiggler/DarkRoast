@@ -2,6 +2,8 @@
 
 namespace DarkRoast\DataBase;
 
+use DarkRoast\IBuilder;
+use DarkRoast\IDarkRoast;
 use DarkRoast\IFieldExpression;
 use DarkRoast\IFilter;
 
@@ -36,11 +38,11 @@ abstract class FieldExpression implements IQueryPart, IFieldExpression {
 		return new BinaryFieldExpression($this, $alias, ' as ');
 	}
 
-	public function ascending() {
+	public function sortAscending() {
 		return new SortedField($this, SortedField::ASCENDING);
 	}
 
-	public function descending() {
+	public function sortDescending() {
 		return new SortedField($this, SortedField::DESCENDING);
 	}
 
@@ -139,7 +141,9 @@ class SortedField implements IQueryPart {
 	}
 
 	public function evaluate(SqlQueryBuilder $queryBuilder) {
-		return $this->field->evaluate($queryBuilder) . " " . ($this->sortAscending ? "ASC" : "DESC");
+		$fieldExpression = $this->field->evaluate($queryBuilder);
+		$queryBuilder->addOrderByExpression($fieldExpression . " " . ($this->sortAscending ? "ASC" : "DESC"));
+		return $fieldExpression;
 	}
 
 	private $field;
@@ -285,14 +289,14 @@ class DarkRoast implements \DarkRoast\IDarkRoast {
 	private $querySource;
 }
 
-class DataProvider {
+class DataProvider implements IBuilder {
 	function __construct(\PDO $pdo) {
 		$this->pdo = $pdo;
 	}
 
-	public function prepareQuery($selectors, $filter, $offset, $limit, $sortFields) {
+	public function build($selectors, $filter = null, $groupFilter = null, $offset = 0, $limit = null) {
 		$queryBuilder = new SqlQueryBuilder($this);
-		$sqlStatement = $queryBuilder->build($selectors, $filter, $offset, $limit, $sortFields);
+		$sqlStatement = $queryBuilder->build($selectors, $filter, $groupFilter, $offset, $limit);
 		return new DarkRoast($sqlStatement, $this->pdo->prepare($sqlStatement), $queryBuilder->bindings());
 	}
 
@@ -319,7 +323,7 @@ class DataProvider {
 	private $pdo;
 }
 
-class SqlQueryBuilder {
+class SqlQueryBuilder implements IBuilder {
 	function __construct(DataProvider $provider) {
 		$this->provider = $provider;
 	}
@@ -333,7 +337,7 @@ class SqlQueryBuilder {
 		return $childBuilder;
 	}
 
-	public function build($selectors, IQueryPart $filter = null, $offset = 0, $limit = null, $sortFields = []) {
+	public function build($selectors, $filter = null, $groupFilter = null, $offset = 0, $limit = null) {
 		$selectClauses = array_map(function ($queryElement) {
 			$fieldExpression = $queryElement->evaluate($this);
 			if (get_class($queryElement) === 'DarkRoast\DataBase\AggregatedField')
@@ -346,9 +350,7 @@ class SqlQueryBuilder {
 
 		$whereClause = isset($filter) ? $filter->evaluate($this) : null;
 
-		$orderClauses = array_map(function (IQueryPart $queryElement) {
-			return $queryElement->evaluate($this);
-		}, $sortFields);
+		$havingClause = isset($groupFilter) ? $groupFilter->evaluate($this) : null;
 
 		$fromClauses = [];
 		foreach ($this->tableAliases as $tableName => $tableAlias) {
@@ -369,9 +371,12 @@ class SqlQueryBuilder {
 		              implode(',' . $this->indent(1), array_keys($this->possibleGroupingExpressions)) . $this->indent(0);
 		}
 
-		if (count($orderClauses) > 0) {
+		if (isset($havingClause))
+			$query .= "HAVING " . $this->indent(1) . $havingClause . $this->indent(0);
+
+		if (count($this->orderClauses) > 0) {
 			$query .= "ORDER BY" . $this->indent(1) .
-			          implode(",\n\t", $orderClauses) . $this->indent(0);
+			          implode(",\n\t", $this->orderClauses) . $this->indent(0);
 		}
 
 		if ($offset > 0 or isset($limit)) {
@@ -404,6 +409,9 @@ class SqlQueryBuilder {
 		return $this->provider->escapeIdentifier($identifier);
 	}
 
+	public function addOrderByExpression($expression) {
+		$this->orderClauses[] = $expression;
+	}
 	public function addBinding($value) {
 		if (isset($this->parent))
 			return $this->parent->addBinding($value);
@@ -426,4 +434,5 @@ class SqlQueryBuilder {
 	private $bindings = [];
 	private $possibleGroupingExpressions = [];
 	private $aggregation = false;
+	private $orderClauses = null;
 }

@@ -12,6 +12,7 @@ $query = select($recipe->cook_time->max(),
 				$recipe->id->count(),
 				$recipe->rest_time->sum(),
 				$recipe->group);        // Aggregate by $recipe->group
+$query->groupFilter($recipe->cook_time->max()->lessThan(70));
 
 $darkRoast = $query->build($provider);
 echo $darkRoast->querySource();
