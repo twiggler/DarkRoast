@@ -15,7 +15,19 @@ interface IDarkRoast {
 	public function execute(...$bindings);
 }
 
-interface IFieldExpression {
+interface IImmutableFieldExpression {
+	public function alias();
+
+	public function rename($alias);
+
+	public function sortAscending();
+
+	public function sortDescending();
+
+	public function groupBy();
+}
+
+interface IFieldExpression extends IImmutableFieldExpression {
 	public function equals($operand);
 
 	public function lessThan($operand);
@@ -25,12 +37,6 @@ interface IFieldExpression {
 	public function isDefined();
 
 	public function isUndefined();
-
-	public function rename($alias);
-
-	public function sortAscending();
-
-	public function sortDescending();
 
 	public function sum();
 
@@ -123,6 +129,12 @@ class Query {
     public function build(IBuilder $builder) {
         return $builder->build($this->selectors, $this->filter, $this->groupFilter, $this->offset, $this->limit);
     }
+
+	public function table($provider) {
+		return $provider->createTable(array_map(function($selector) use($provider) {
+			return $selector->alias($provider);
+		}, $this->selectors), $this);
+	}
 
 	/**
 	 * Shorthand to build and execute query.

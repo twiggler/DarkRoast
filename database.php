@@ -6,6 +6,7 @@ use DarkRoast\IBuilder;
 use DarkRoast\IDarkRoast;
 use DarkRoast\IFieldExpression;
 use DarkRoast\IFilter;
+use DarkRoast\IImmutableFieldExpression;
 
 require_once('darkroast.php');
 
@@ -13,7 +14,25 @@ interface IQueryPart {
 	public function evaluate(SqlQueryBuilder $queryBuilder);
 }
 
-abstract class FieldExpression implements IQueryPart, IFieldExpression {
+abstract class ImmutableFieldExpression implements IQueryPart, IImmutableFieldExpression {
+	public function rename($alias) {
+		return new TerminalField($this, $alias);
+	}
+
+	public function sortAscending() {
+		return new TerminalField($this, null, TerminalField::ASCENDING);
+	}
+
+	public function sortDescending() {
+		return new TerminalField($this, null, TerminalField::DESCENDING);
+	}
+
+	public function groupBy() {
+		return new TerminalField($this, null, null, true);
+	}
+}
+
+abstract class FieldExpression extends ImmutableFieldExpression implements IFieldExpression {
 	public function equals($operand) {
 		return isset($operand) ? new BinaryFilterExpression($this, $operand, '=', false) : new NullFilter();
 	}
@@ -32,18 +51,6 @@ abstract class FieldExpression implements IQueryPart, IFieldExpression {
 
 	public function isUndefined() {
 		return new UnaryFilterExpression($this, 'is null', UnaryFilterExpression::POSTFIX);
-	}
-
-	public function rename($alias) {
-		return new BinaryFieldExpression($this, $alias, ' as ');
-	}
-
-	public function sortAscending() {
-		return new SortedField($this, SortedField::ASCENDING);
-	}
-
-	public function sortDescending() {
-		return new SortedField($this, SortedField::DESCENDING);
 	}
 
 	public function sum() {
@@ -78,8 +85,31 @@ class Field extends FieldExpression {
 		return $queryBuilder->addressField($this->tableName, $this->columnName);
 	}
 
+	public function alias(){
+		return $this->columnName;
+	}
+
 	private $tableName;
 	private $columnName;
+}
+
+class UserField extends FieldExpression {
+	function __construct($columnName, $query) {
+		$this->columnName = $columnName;
+		$this->query = $query;
+	}
+
+	public function evaluate(SqlQueryBuilder $queryBuilder) {
+		return $queryBuilder->addressUserField($this->query, $this->columnName);
+	}
+
+	public function alias() {
+		return $this->columnName;
+	}
+
+
+	private $columnName;
+	private $query;
 }
 
 class AggregatedField extends FieldExpression {
@@ -93,17 +123,25 @@ class AggregatedField extends FieldExpression {
 		return "{$this->function}(" . ($this->distinct ? 'DISTINCT' : '') . $this->field->evaluate($queryBuilder) . ")";
 	}
 
+	public function alias() {
+		return "";
+	}
+
 	private $field;
 	private $function;
 	private $distinct;
 }
 
-class ConstantField implements IQueryPart{
+class ConstantField extends FieldExpression {
 	function __construct($expression) {
 		$this->expression = $expression;
 	}
 
 	public function evaluate(SqlQueryBuilder $queryBuilder) {
+		return strval($this->expression);
+	}
+
+	public function alias() {
 		return strval($this->expression);
 	}
 
@@ -126,27 +164,68 @@ class BinaryFieldExpression extends FieldExpression {
 		return $part;
 	}
 
+	public function alias(){
+		return "";
+	}
+
 	private $field1;
 	private $field2;
 	private $operator;
 }
 
-class SortedField implements IQueryPart {
+class TerminalField implements IQueryPart, IImmutableFieldExpression {
 	const ASCENDING = 1;
 	const DESCENDING = -1;
 
-	function __construct($field, $direction) {
+	function __construct($field, $alias, $sortDirection = null, $groupingField = false) {
 		$this->field = $field;
-		$this->sortAscending = $direction === self::ASCENDING;
+		$this->alias = $alias;
+		$this->sortDirection = $sortDirection;
+		$this->groupingField = $groupingField;
+	}
+
+	public function groupBy() {
+		$this->groupingField = true;
+		return $this;
+	}
+
+	public function alias() {
+		return isset($this->alias) ? $this->alias : $this->field->alias();
+	}
+
+	public function rename($alias) {
+		$this->alias = $alias;
+		return $this;
+	}
+
+	public function sortAscending() {
+		$this->sortDirection = self::ASCENDING;
+		return $this;
+	}
+
+	public function sortDescending() {
+		$this->sortDirection = self::DESCENDING;
+		return $this;
 	}
 
 	public function evaluate(SqlQueryBuilder $queryBuilder) {
 		$fieldExpression = $this->field->evaluate($queryBuilder);
-		$queryBuilder->addOrderByExpression($fieldExpression . " " . ($this->sortAscending ? "ASC" : "DESC"));
+
+		if ($this->groupingField)
+			$queryBuilder->addGroupingField($fieldExpression);
+
+		if (isset($this->sortDirection))
+			$queryBuilder->addOrderByExpression($fieldExpression . " " . ($this->sortAscending === self::ASCENDING ? "ASC" : "DESC"));
+
+		if (isset($this->alias))
+			$fieldExpression .= " AS {$this->alias}";
+
 		return $fieldExpression;
 	}
 
 	private $field;
+	private $alias;
+	private $groupingField;
 	private $sortAscending;
 }
 
@@ -236,24 +315,21 @@ class BinaryFilterExpression extends Filter {
 	private $indent;
 }
 
-;
-
 class ExistsFilter extends Filter implements IQueryPart {
 	function __construct($condition) {
 		$this->condition = $condition;
 	}
 
 	function evaluate(SqlQueryBuilder $queryBuilder) {
-		$subQueryBuilder = $queryBuilder->createChild(1);
+		$subQueryBuilder = $queryBuilder->createChild(1, true /* Correlated sub-query */);
 		$subQuerySql = $subQueryBuilder->build([new ConstantField(1)], $this->condition);
-		return "EXISTS (" .
-		       $subQuerySql . ")";
+		return "EXISTS (" .  $subQuerySql . ")";
 	}
 
 	private $condition;
 }
 
-class DarkRoast implements \DarkRoast\IDarkRoast {
+class DarkRoast implements IDarkRoast {
 	function __construct($querySource, \PDOStatement $pdpPreparedQuery, $bindings) {
 		$this->querySource = $querySource;
 		$this->pdpPreparedQuery = $pdpPreparedQuery;
@@ -289,86 +365,54 @@ class DarkRoast implements \DarkRoast\IDarkRoast {
 	private $querySource;
 }
 
-class DataProvider implements IBuilder {
-	function __construct(\PDO $pdo) {
-		$this->pdo = $pdo;
-	}
-
-	public function build($selectors, $filter = null, $groupFilter = null, $offset = 0, $limit = null) {
-		$queryBuilder = new SqlQueryBuilder($this);
-		$sqlStatement = $queryBuilder->build($selectors, $filter, $groupFilter, $offset, $limit);
-		return new DarkRoast($sqlStatement, $this->pdo->prepare($sqlStatement), $queryBuilder->bindings());
-	}
-
-	public function escapeIdentifier($identifier) {
-		return "`" . str_replace("`", "``", $identifier) . "`";
-	}
-
-	public function reflectTable(...$tableNames) {
-		$tables = array_map(function ($tableName) {
-			$table = new \stdClass();
-			$query = "show columns from " . $this->escapeIdentifier($tableName);
-
-			foreach ($this->pdo->query($query) as $column) {
-				$columnName = reset($column);
-				$table->{$columnName} = new Field($tableName, $columnName);
-			}
-
-			return $table;
-		}, $tableNames);
-
-		return count($tables) > 1 ? $tables : reset($tables);
-	}
-
-	private $pdo;
-}
-
 class SqlQueryBuilder implements IBuilder {
 	function __construct(DataProvider $provider) {
 		$this->provider = $provider;
+		$this->userTables = new \SplObjectStorage();
 	}
 
-	public function createChild($indentationLevel = 0) {
+	public function createChild($indentationLevel = 0, $correlatedQuery = false) {
 		$childBuilder = new SqlQueryBuilder($this->provider);
 		$childBuilder->parent = $this;
 		$childBuilder->depth = $this->depth + 1;
 		$childBuilder->indentationLevel = $this->indentationLevel + $indentationLevel + 1;
+		$childBuilder->correlatedQuery = $correlatedQuery;
 
 		return $childBuilder;
 	}
 
 	public function build($selectors, $filter = null, $groupFilter = null, $offset = 0, $limit = null) {
 		$selectClauses = array_map(function ($queryElement) {
-			$fieldExpression = $queryElement->evaluate($this);
-			if (get_class($queryElement) === 'DarkRoast\DataBase\AggregatedField')
-				$this->aggregation = true;
-			else
-				$this->possibleGroupingExpressions[$fieldExpression] = null;
-
-			return $fieldExpression;
+			return $queryElement->evaluate($this);
 		}, $selectors);
 
 		$whereClause = isset($filter) ? $filter->evaluate($this) : null;
 
 		$havingClause = isset($groupFilter) ? $groupFilter->evaluate($this) : null;
 
-		$fromClauses = [];
+		$fromClause = [];
 		foreach ($this->tableAliases as $tableName => $tableAlias) {
-			$fromClauses[] = $this->provider->escapeIdentifier($tableName) . " AS " . $this->provider->escapeIdentifier($tableAlias);
+			$fromClause[] = $this->provider->escapeIdentifier($tableName) . " AS " . $this->provider->escapeIdentifier($tableAlias);
+		}
+
+		foreach ($this->userTables as $tableQuery) {
+			$builder = $this->createChild();
+			$userTableSql = $tableQuery->build($builder);
+			$fromClause[] = "( {$userTableSql} ) AS {$this->userTables[$tableQuery]}";
 		}
 
 		$query = $this->indent(0, $this->indentationLevel > 0) .
 		         "SELECT" . $this->indent(1) .
 		         implode(',' . $this->indent(1), $selectClauses) . $this->indent(0) .
 		         "FROM" . $this->indent(1) .
-		         implode($this->indent(1) . "CROSS JOIN ", $fromClauses) . $this->indent(0);
+		         implode($this->indent(1) . "CROSS JOIN ", $fromClause) . $this->indent(0);
 
 		if (isset($whereClause))
 			$query .= "WHERE" . $this->indent(1) . $whereClause . $this->indent(0);
 
-		if ($this->aggregation and count($this->possibleGroupingExpressions)) {
+		if (count($this->groupingFields)) {
 			$query .= "GROUP BY" . $this->indent(1) .
-		              implode(',' . $this->indent(1), array_keys($this->possibleGroupingExpressions)) . $this->indent(0);
+			          implode(',' . $this->indent(1), array_keys($this->groupingFields)) . $this->indent(0);
 		}
 
 		if (isset($havingClause))
@@ -391,18 +435,35 @@ class SqlQueryBuilder implements IBuilder {
 	}
 
 	public function addressField($tableName, $columnName) {
-		$alias = null;
-		for ($builder = $this; isset($builder); $builder = $builder->parent)
-			if (isset($builder->tableAliases[$tableName]))
-				$alias = $builder->tableAliases[$tableName];
-
-		if (is_null($alias)) {
-			$alias = str_repeat("t", $this->depth + 1) . count($this->tableAliases);
+		if (isset($this->tableAliases[$tableName]))
+			$alias = $this->tableAliases[$tableName];
+		elseif ($this->correlatedQuery and isset($this->parent) and isset($this->parent->tableAliases[$tableName]))
+			$alias = $this->parent->tableAliases[$tableName];
+		else {
+			$alias = str_repeat('t', $this->depth + 1) . count($this->tableAliases);
 			$this->tableAliases[$tableName] = $alias;
 		}
 
 		$fieldName = $this->provider->escapeIdentifier($alias) . "." . $this->provider->escapeIdentifier($columnName);
 		return $fieldName;
+	}
+
+	public function addressUserField($query, $columnName) {
+		if (isset($this->userTables[$query]))
+			$alias = $this->userTables[$query];
+		elseif ($this->correlatedQuery and isset($this->parent) and isset($this->parent->userTables[$query]))
+			$alias = $this->parent->userTables[$query];
+		else {
+			$alias = str_repeat('u', $this->depth + 1) . count($this->userTables);
+			$this->userTables[$query] = $alias;
+		}
+
+		$fieldName = $this->provider->escapeIdentifier($alias) . "." . $this->provider->escapeIdentifier($columnName);
+		return $fieldName;
+	}
+
+	public function addGroupingField($fieldExpression) {
+		$this->groupingFields[$fieldExpression] = null;
 	}
 
 	public function escapeIdentifier($identifier) {
@@ -430,9 +491,54 @@ class SqlQueryBuilder implements IBuilder {
 	private $indentationLevel = 0;
 	private $depth = 0;
 	private $tableAliases = [];
+	private $userTables;
 	private $provider;
 	private $bindings = [];
-	private $possibleGroupingExpressions = [];
-	private $aggregation = false;
+	private $groupingFields = [];
 	private $orderClauses = null;
+	private $correlatedQuery = false;
+}
+
+class DataProvider implements IBuilder {
+	function __construct(\PDO $pdo) {
+		$this->pdo = $pdo;
+	}
+
+	public function build($selectors, $filter = null, $groupFilter = null, $offset = 0, $limit = null) {
+		$queryBuilder = new SqlQueryBuilder($this);
+		$sqlStatement = $queryBuilder->build($selectors, $filter, $groupFilter, $offset, $limit);
+		return new DarkRoast($sqlStatement, $this->pdo->prepare($sqlStatement), $queryBuilder->bindings());
+	}
+
+	public function escapeIdentifier($identifier) {
+		return "`" . str_replace("`", "``", $identifier) . "`";
+	}
+
+	public function createTable($fieldNames, $query) {
+		$table = new \stdClass();
+		foreach ($fieldNames as $fieldName) {
+			if ($fieldName !== '')
+				$table->{$fieldName} = new UserField($fieldName, $query);
+		}
+
+		return $table;
+	}
+
+	public function reflectTable(...$tableNames) {
+		$tables = array_map(function ($tableName) {
+			$table = new \stdClass();
+			$query = "show columns from " . $this->escapeIdentifier($tableName);
+
+			foreach ($this->pdo->query($query) as $column) {
+				$columnName = reset($column);
+				$table->{$columnName} = new Field($tableName, $columnName);
+			}
+
+			return $table;
+		}, $tableNames);
+
+		return count($tables) > 1 ? $tables : reset($tables);
+	}
+
+	private $pdo;
 }
