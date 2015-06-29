@@ -2,11 +2,12 @@
 
 namespace DarkRoast\DataBase;
 
+use DarkRoast\IAggregateableExpression;
 use DarkRoast\IBuilder;
 use DarkRoast\IDarkRoast;
 use DarkRoast\IFieldExpression;
 use DarkRoast\IFilter;
-use DarkRoast\IImmutableFieldExpression;
+use DarkRoast\ITerminalFieldExpression;
 
 require_once('darkroast.php');
 
@@ -14,8 +15,8 @@ interface IQueryPart {
 	public function evaluate(SqlQueryBuilder $queryBuilder);
 }
 
-abstract class ImmutableFieldExpression implements IQueryPart, IImmutableFieldExpression {
-	public function rename($alias) {
+abstract class TerminalFieldExpression implements IQueryPart, ITerminalFieldExpression {
+	public function name($alias) {
 		return new TerminalField($this, $alias);
 	}
 
@@ -26,13 +27,9 @@ abstract class ImmutableFieldExpression implements IQueryPart, IImmutableFieldEx
 	public function sortDescending() {
 		return new TerminalField($this, null, TerminalField::DESCENDING);
 	}
-
-	public function groupBy() {
-		return new TerminalField($this, null, null, true);
-	}
 }
 
-abstract class FieldExpression extends ImmutableFieldExpression implements IFieldExpression {
+abstract class FieldExpression extends TerminalFieldExpression implements IFieldExpression {
 	public function equals($operand) {
 		return isset($operand) ? new BinaryFilterExpression($this, $operand, '=', false) : new NullFilter();
 	}
@@ -52,7 +49,9 @@ abstract class FieldExpression extends ImmutableFieldExpression implements IFiel
 	public function isUndefined() {
 		return new UnaryFilterExpression($this, 'is null', UnaryFilterExpression::POSTFIX);
 	}
+}
 
+abstract class AggregatableExpression extends FieldExpression implements IAggregateableExpression {
 	public function sum() {
 		return new AggregatedField($this, 'sum', false);
 	}
@@ -72,10 +71,14 @@ abstract class FieldExpression extends ImmutableFieldExpression implements IFiel
 	public function countUnique() {
 		return new AggregatedField($this, 'count', true);
 	}
+
+	public function group() {
+		return new GroupingField($this);
+	}
 }
 
 
-class Field extends FieldExpression {
+class Field extends AggregatableExpression {
 	function __construct($tableName, $columnName) {
 		$this->tableName = $tableName;
 		$this->columnName = $columnName;
@@ -93,7 +96,7 @@ class Field extends FieldExpression {
 	private $columnName;
 }
 
-class UserField extends FieldExpression {
+class UserField extends AggregatableExpression {
 	function __construct($columnName, $query) {
 		$this->columnName = $columnName;
 		$this->query = $query;
@@ -148,7 +151,7 @@ class ConstantField extends FieldExpression {
 	private $expression;
 }
 
-class BinaryFieldExpression extends FieldExpression {
+class BinaryFieldExpression extends AggregatableExpression {
 	function __construct(IQueryPart $field1, $field2, $operator) {
 		$this->field1 = $field1;
 		$this->field2 = $field2;
@@ -173,27 +176,21 @@ class BinaryFieldExpression extends FieldExpression {
 	private $operator;
 }
 
-class TerminalField implements IQueryPart, IImmutableFieldExpression {
+class TerminalField implements IQueryPart, ITerminalFieldExpression {
 	const ASCENDING = 1;
 	const DESCENDING = -1;
 
-	function __construct($field, $alias, $sortDirection = null, $groupingField = false) {
+	function __construct($field, $alias, $sortDirection = null) {
 		$this->field = $field;
 		$this->alias = $alias;
 		$this->sortDirection = $sortDirection;
-		$this->groupingField = $groupingField;
-	}
-
-	public function groupBy() {
-		$this->groupingField = true;
-		return $this;
 	}
 
 	public function alias() {
 		return isset($this->alias) ? $this->alias : $this->field->alias();
 	}
 
-	public function rename($alias) {
+	public function name($alias) {
 		$this->alias = $alias;
 		return $this;
 	}
@@ -211,9 +208,6 @@ class TerminalField implements IQueryPart, IImmutableFieldExpression {
 	public function evaluate(SqlQueryBuilder $queryBuilder) {
 		$fieldExpression = $this->field->evaluate($queryBuilder);
 
-		if ($this->groupingField)
-			$queryBuilder->addGroupingField($fieldExpression);
-
 		if (isset($this->sortDirection))
 			$queryBuilder->addOrderByExpression($fieldExpression . " " . ($this->sortAscending === self::ASCENDING ? "ASC" : "DESC"));
 
@@ -225,8 +219,26 @@ class TerminalField implements IQueryPart, IImmutableFieldExpression {
 
 	private $field;
 	private $alias;
-	private $groupingField;
 	private $sortAscending;
+}
+
+class GroupingField extends FieldExpression {
+	function __construct($field) {
+		$this->field = $field;
+	}
+
+	public function evaluate(SqlQueryBuilder $queryBuilder) {
+		$fieldExpression = $this->field->evaluate($queryBuilder);
+		$queryBuilder->addGroupingField($fieldExpression);
+
+		return $fieldExpression;
+	}
+
+	public function alias() {
+		return $this->field->alias();
+	}
+
+	private $field;
 }
 
 
@@ -243,7 +255,6 @@ abstract class Filter implements IQueryPart, IFilter  {
 		return new ExistsFilter($this);
 	}
 }
-
 
 class NullFilter implements IQueryPart, IFilter {
 	public function evaluate(SqlQueryBuilder $queryBuilder) {

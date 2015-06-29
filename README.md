@@ -38,6 +38,9 @@ The objects `$recipe` and `$tag` now contain public member fields representing D
 See the [basic demo](demo/basic.php) for a in-depth example.      
 
 ## Aggregates
-Dark Roast supports aggregation of data over grouping variables. Call one of the aggregation functions `max`, `min`, `sum`, or `count` on fields in the select clause. Fields without an aggregation function are taken to be grouping variables over which the aggregations is applied.
+Dark Roast supports aggregation of data over grouping variables. Call one of the aggregation functions `max`, `min`, `sum`, `count` or `countUnique` on fields in the select clause. Fields expressions whose `group` method is called define the groups over which the aggregation takes place. Only a single call to any of the aggregation functions or `group` can be made per field expression. 
 
 See the [aggregates demo](demo/aggregates.php) for an example.
+
+## Terminal field methods
+The methods `name`, `sortAscending`, or`sortDescending` are meant to be used at the end of a field expression. Resulting field expression of a call to one of the methods in the interface `ITerminalFieldExpression`, that is either `name`, `sortAscending`, or `sortDescending`, provide solely for further calls to members of `ITerminalFieldExpression`. 

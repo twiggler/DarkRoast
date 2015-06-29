@@ -2,23 +2,25 @@
 
 require_once('../database.php');
 use function DarkRoast\select as select;
+use function DarkRoast\table as table;
 
 $pdo = new PDO('mysql:host=localhost; dbname=recipe', "dev", "Ig8ajGd1vtZZSaa99kvZ");
 $provider = new \DarkRoast\DataBase\DataProvider($pdo);
 $recipe = $provider->reflectTable('recipe');
 
-$aggregates = select($recipe->cook_time->max()->rename('maxCookingTime'),
-                     $recipe->prep_time->min(),
-                     $recipe->id->count(),
-                     $recipe->rest_time->sum()->rename('sumRestTime'),
-                     $recipe->group->groupBy()) // Aggregate by $recipe->group
-				->groupFilter($recipe->cook_time->max()->lessThan(70))
-				->table($provider);
+$aggregates = table(select($recipe->cook_time->max()
+                                             ->name('maxCookingTime'),
+                           $recipe->prep_time->min(),
+                           $recipe->id->count(),
+                           $recipe->rest_time->sum()
+                                             ->name('sumRestTime'),
+                           $recipe->group->group())->groupFilter($recipe->cook_time->max()
+                                                                                   ->lessThan(70)),
+                    $provider);
 
 $query = select($recipe->title,
                 $aggregates->maxCookingTime,
-                $aggregates->sumRestTime)
-		->filter($recipe->group->equals($aggregates->group));
+                $aggregates->sumRestTime)->filter($recipe->group->equals($aggregates->group));
 
 $darkRoast = $query->build($provider);
 echo $darkRoast->querySource();

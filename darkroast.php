@@ -1,7 +1,5 @@
 <?php
 
-
-
 namespace DarkRoast;
 
 interface IDarkRoast {
@@ -15,19 +13,17 @@ interface IDarkRoast {
 	public function execute(...$bindings);
 }
 
-interface IImmutableFieldExpression {
+interface ITerminalFieldExpression {
 	public function alias();
 
-	public function rename($alias);
+	public function name($alias);
 
 	public function sortAscending();
 
 	public function sortDescending();
-
-	public function groupBy();
 }
 
-interface IFieldExpression extends IImmutableFieldExpression {
+interface IFieldExpression extends ITerminalFieldExpression {
 	public function equals($operand);
 
 	public function lessThan($operand);
@@ -37,7 +33,9 @@ interface IFieldExpression extends IImmutableFieldExpression {
 	public function isDefined();
 
 	public function isUndefined();
+}
 
+interface IAggregateableExpression extends IFieldExpression {
 	public function sum();
 
 	public function max();
@@ -47,6 +45,8 @@ interface IFieldExpression extends IImmutableFieldExpression {
 	public function count();
 
 	public function countUnique();
+
+	public function group();
 }
 
 interface IBuilder {
@@ -192,6 +192,10 @@ function select(...$fields) {
     $query = new Query();
 
     return $query->select(...$fields);
+}
+
+function table(Query $query, $provider) {
+	return $query->table($provider);
 }
 
 function sum(...$fields) {

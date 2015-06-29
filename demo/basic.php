@@ -18,7 +18,7 @@ $params = array('offset' => 0, 'tag' => array(38, 39), 'video' => 'ja', 'limit' 
 
 $query = select($recipe->id->sortAscending(),
                 $recipe->title,
-                $recipe->image_url->rename('imageUrl'),     // Field is designated 'imageUrl' in result tuple
+                $recipe->image_url->name('imageUrl'),     // Field is designated 'imageUrl' in result tuple
                 $recipe->summary,
                 $recipe->ingredients);
 
