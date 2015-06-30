@@ -5,7 +5,7 @@ namespace DarkRoast;
 interface IDarkRoast {
 	/**
 	 * Execute the build query and returns the result as an array.
-	 * When the query contains placeholders, pass the unbound arguments. Each placeholder
+	 * When the query contains placeholders, invoke this function with unbound arguments. Each placeholder
 	 * _N is replaced by the Nth argument.
 	 * @param mixed ...$bindings Bound values for placeholders.
 	 * @return array Result tuple.
@@ -98,31 +98,36 @@ Placeholders::$_8 = new Placeholder(8);
 Placeholders::$_9 = new Placeholders(9);
 
 class Query {
-    public function select(...$fields) {
+	/**
+	 * Add selectors to query.
+	 * @param ITerminalFieldExpression ...$fields Selectors to add.
+	 * @return $this
+	 */
+	public function select(ITerminalFieldExpression ...$fields) {
         $this->selectors = array_merge($this->selectors, $fields);
 
         return $this;
     }
 
-    public function filter(...$conditions) {
+    public function filter(IFilter ...$conditions) {
 		$this->filter = null;
 		$this->_and(...$conditions);
 
         return $this;
     }
 
-	public function groupFilter(...$conditions) {
+	public function groupFilter(IFilter ...$conditions) {
 		$this->groupFilter = null;
 		$this->addConditions($conditions, "_and", $this->groupFilter);
 
 		return $this;
 	}
 
-    public function _or(...$conditions) {
+    public function _or(IFilter ...$conditions) {
         return $this->addConditions($conditions, "_or", $this->filter);
     }
 
-    public function _and(...$conditions) {
+    public function _and(IFilter ...$conditions) {
         return $this->addConditions($conditions, "_and", $this->filter);
     }
 
@@ -138,19 +143,20 @@ class Query {
 
 	/**
 	 * Shorthand to build and execute query.
-	 * @param mixed ...$params First argument must be a Data Provider; other arguments are forwarded to IDarkRoast::execute
+	 * @param $builder IBuilder
+	 * @param ...$params mixed Unbound arguments forwarded to IDarkRoast::execute
 	 * @see Query::build
 	 * @see IDarkRoast::execute
 	 * @return array Result tuple
 	 */
-	public function execute(...$params) {
-		$darkRoast = $this->build(array_shift($params));
+	public function execute(IBuilder $builder, ...$params) {
+		$darkRoast = $this->build($builder);
 		return $darkRoast->execute(...$params);
 	}
 
     public function offset($offset) {
-        if (!is_int($offset)) throw new InvalidArgumentException('Offset must be an integer.');
-        if ($offset < 0) throw new DomainException('Offset must be positive');
+        if (!is_int($offset)) throw new \InvalidArgumentException('Offset must be an integer.');
+        if ($offset < 0) throw new \DomainException('Offset must be positive');
 
         $this->offset = $offset;
 
@@ -159,8 +165,8 @@ class Query {
 
     public function limit($limit) {
         if (isset($limit)) {
-	        if (!is_int($limit)) throw new InvalidArgumentException('Limit must be an integer.');
-	        if ($limit < 0) throw new DomainException('Offset must be positive');
+	        if (!is_int($limit)) throw new \InvalidArgumentException('Limit must be an integer.');
+	        if ($limit < 0) throw new \DomainException('Offset must be positive');
         }
 
         $this->limit = $limit;
@@ -168,7 +174,7 @@ class Query {
         return $this;
     }
 
-    private function addConditions($conditions, $logicalOperator, &$targetFilter) {
+    private function addConditions(array $conditions, $logicalOperator, &$targetFilter) {
         $firstCondition = isset($targetFilter) ? $targetFilter : array_shift($conditions);
 	    $targetFilter = array_reduce($conditions, function($filter, $condition) use($logicalOperator) {
 		    return $filter->$logicalOperator($condition);
@@ -188,7 +194,7 @@ class Query {
  * @param ...$fields
  * @return Query
  */
-function select(...$fields) {
+function select(ITerminalFieldExpression ...$fields) {
     $query = new Query();
 
     return $query->select(...$fields);
@@ -198,7 +204,7 @@ function table(Query $query, $provider) {
 	return $query->table($provider);
 }
 
-function sum(...$fields) {
+function sum(ITerminalFieldExpression ...$fields) {
     if (count($fields) < 2) throw new InvalidArgumentException('Sum requires at least two operands.');
 
     $firstField = array_shift($fields);
@@ -207,7 +213,7 @@ function sum(...$fields) {
     }, $firstField);
 }
 
-function exists(...$conditions) {
+function exists(IFilter ...$conditions) {
 	$firstCondition = array_shift($conditions);
 	$condition = array_reduce($conditions, function($filter, $condition) {
 		return $filter->_and($condition);
@@ -216,6 +222,6 @@ function exists(...$conditions) {
 	return $condition->exists();
 }
 
-function coalesce($array, $key, $default = null) {
+function coalesce(array $array, $key, $default = null) {
 	return isset($array[$key]) ? $array[$key] : $default;
 }

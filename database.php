@@ -209,7 +209,7 @@ class TerminalField implements IQueryPart, ITerminalFieldExpression {
 		$fieldExpression = $this->field->evaluate($queryBuilder);
 
 		if (isset($this->sortDirection))
-			$queryBuilder->addOrderByExpression($fieldExpression . " " . ($this->sortAscending === self::ASCENDING ? "ASC" : "DESC"));
+			$queryBuilder->addOrderByExpression($fieldExpression, $this->sortDirection);
 
 		if (isset($this->alias))
 			$fieldExpression .= " AS {$this->alias}";
@@ -219,7 +219,7 @@ class TerminalField implements IQueryPart, ITerminalFieldExpression {
 
 	private $field;
 	private $alias;
-	private $sortAscending;
+	private $sortDirection;
 }
 
 class GroupingField extends FieldExpression {
@@ -401,6 +401,11 @@ class SqlQueryBuilder implements IBuilder {
 
 		$havingClause = isset($groupFilter) ? $groupFilter->evaluate($this) : null;
 
+		$orderClause = [];
+		foreach (isset($this->sortFields) ? $this->sortFields : [] as $fieldExpression => $sortDirection) {
+			$orderClause[] = $fieldExpression . ' ' . ($sortDirection === TerminalField::ASCENDING ? "ASC" : "DESC");
+		}
+
 		$fromClause = [];
 		foreach ($this->tableAliases as $tableName => $tableAlias) {
 			$fromClause[] = $this->provider->escapeIdentifier($tableName) . " AS " . $this->provider->escapeIdentifier($tableAlias);
@@ -429,9 +434,9 @@ class SqlQueryBuilder implements IBuilder {
 		if (isset($havingClause))
 			$query .= "HAVING " . $this->indent(1) . $havingClause . $this->indent(0);
 
-		if (count($this->orderClauses) > 0) {
+		if (count($orderClause) > 0) {
 			$query .= "ORDER BY" . $this->indent(1) .
-			          implode(",\n\t", $this->orderClauses) . $this->indent(0);
+			          implode(",\n\t", $orderClause) . $this->indent(0);
 		}
 
 		if ($offset > 0 or isset($limit)) {
@@ -481,8 +486,8 @@ class SqlQueryBuilder implements IBuilder {
 		return $this->provider->escapeIdentifier($identifier);
 	}
 
-	public function addOrderByExpression($expression) {
-		$this->orderClauses[] = $expression;
+	public function addOrderByExpression($expression, $sortDirection) {
+		$this->sortFields[$expression] = $sortDirection;
 	}
 	public function addBinding($value) {
 		if (isset($this->parent))
@@ -506,7 +511,7 @@ class SqlQueryBuilder implements IBuilder {
 	private $provider;
 	private $bindings = [];
 	private $groupingFields = [];
-	private $orderClauses = null;
+	private $sortFields = null;
 	private $correlatedQuery = false;
 }
 

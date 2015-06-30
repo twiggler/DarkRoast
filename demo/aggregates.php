@@ -19,7 +19,8 @@ $aggregates = table(select($recipe->cook_time->max()
                     $provider);
 
 $query = select($recipe->title,
-                $aggregates->maxCookingTime,
+                $aggregates->maxCookingTime->sortDescending(),
+                $aggregates->maxCookingTime->sortAscending(), // Last sort takes precedence.
                 $aggregates->sumRestTime)->filter($recipe->group->equals($aggregates->group));
 
 $darkRoast = $query->build($provider);
@@ -29,6 +30,7 @@ print_r($darkRoast->execute());
 /* Generated Query (verbatim):
 SELECT
 	`t0`.`title`,
+	`u0`.`maxCookingTime`,
 	`u0`.`maxCookingTime`,
 	`u0`.`sumRestTime`
 FROM
@@ -48,4 +50,6 @@ FROM
 		max(`tt0`.`cook_time`) < :b0
 	 ) AS u0
 WHERE
-	`t0`.`group` = `u0`.`group` */
+	`t0`.`group` = `u0`.`group`
+ORDER BY
+	`u0`.`maxCookingTime` ASC */
