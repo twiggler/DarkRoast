@@ -42,6 +42,18 @@ abstract class FieldExpression extends TerminalFieldExpression implements IField
 		return new BinaryFieldExpression($this, $operand, '+', false);
 	}
 
+	public function minus($operand) {
+		return new BinaryFieldExpression($this, $operand, '-', false);
+	}
+
+	public function multiply($operand) {
+		return new BinaryFieldExpression($this, $operand, '*', false);
+	}
+
+	public function divide($operand) {
+		return new BinaryFieldExpression($this, $operand, '/', false);
+	}
+
 	public function isDefined() {
 		return new UnaryFilterExpression($this, 'is not null', UnaryFilterExpression::POSTFIX);
 	}
@@ -160,9 +172,13 @@ class BinaryFieldExpression extends AggregatableExpression {
 
 	public function evaluate(SqlQueryBuilder $queryBuilder) {
 		$part = $this->field1->evaluate($queryBuilder) . " {$this->operator} ";
-		if (is_string($this->field2))
+
+		if (is_numeric($this->field2))
 			$part .= $queryBuilder->addBinding($this->field2);
-		else $part .= $this->field2->evaluate($queryBuilder);
+		elseif ($this->field2 instanceof ITerminalFieldExpression)
+			$part .= $this->field2->evaluate($queryBuilder);
+		else
+			throw new \InvalidArgumentException("Invalid operand type specified for binary field expression");
 
 		return $part;
 	}

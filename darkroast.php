@@ -30,6 +30,12 @@ interface IFieldExpression extends ITerminalFieldExpression {
 
 	public function add($operand);
 
+	public function minus($operand);
+
+	public function multiply($operand);
+
+	public function divide($operand);
+
 	public function isDefined();
 
 	public function isUndefined();
@@ -204,13 +210,16 @@ function table(Query $query, $provider) {
 	return $query->table($provider);
 }
 
-function sum(ITerminalFieldExpression ...$fields) {
-    if (count($fields) < 2) throw new InvalidArgumentException('Sum requires at least two operands.');
+function reduceFields(callable $func, ITerminalFieldExpression ...$fields) {
+	if (count($fields) < 2) throw new \InvalidArgumentException('Operation requires at least two operands.');
+	$firstField = array_shift($fields);
+	return array_reduce($fields, $func, $firstField);
+}
 
-    $firstField = array_shift($fields);
-    return array_reduce($fields, function($carry, $fieldExpression) {
-        return $carry->add($fieldExpression);
-    }, $firstField);
+function sum(ITerminalFieldExpression ...$fields) {
+	return reduceFields(function($carry, $fieldExpression) {
+		return $carry->add($fieldExpression);
+	}, ...$fields);
 }
 
 function exists(IFilter ...$conditions) {
