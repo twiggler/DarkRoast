@@ -91,20 +91,24 @@ abstract class AggregatableExpression extends FieldExpression implements IAggreg
 
 
 class Field extends AggregatableExpression {
-	function __construct($tableName, $columnName) {
-		$this->tableName = $tableName;
+	function __construct($table, $columnName) {
+		$this->table = $table;
 		$this->columnName = $columnName;
 	}
 
+	public function deepCopy($table) {
+		return new Field($table, $this->columnName);
+	}
+
 	public function evaluate(SqlQueryBuilder $queryBuilder) {
-		return $queryBuilder->addressField($this->tableName, $this->columnName);
+		return $queryBuilder->addressField($this->table, $this->columnName);
 	}
 
 	public function alias(){
 		return $this->columnName;
 	}
 
-	private $tableName;
+	private $table;
 	private $columnName;
 }
 
@@ -126,6 +130,32 @@ class UserField extends AggregatableExpression {
 	private $columnName;
 	private $query;
 }
+
+class Table {
+	function __construct($identifier) {
+		$this->identifier = $identifier;
+		$this->_id = uniqid();
+	}
+
+	public function deepCopy() {
+		$clone = new Table($this->identifier);
+
+		foreach($this as $fieldName => $field) {
+			if ($field instanceof Field)
+				$clone->{$fieldName} = $field->deepCopy($clone);
+		}
+
+		return($clone);
+	}
+
+	public function name() {
+		return $this->identifier;
+	}
+
+	private $identifier;
+	private $_id;
+}
+
 
 class AggregatedField extends FieldExpression {
 	function __construct($field, $function, $distinct) {
@@ -175,7 +205,7 @@ class BinaryFieldExpression extends AggregatableExpression {
 
 		if (is_numeric($this->field2))
 			$part .= $queryBuilder->addBinding($this->field2);
-		elseif ($this->field2 instanceof ITerminalFieldExpression)
+		elseif ($this->field2 instanceof IFieldExpression)
 			$part .= $this->field2->evaluate($queryBuilder);
 		else
 			throw new \InvalidArgumentException("Invalid operand type specified for binary field expression");
@@ -395,6 +425,7 @@ class DarkRoast implements IDarkRoast {
 class SqlQueryBuilder implements IBuilder {
 	function __construct(DataProvider $provider) {
 		$this->provider = $provider;
+		$this->tableAliases = new \SplObjectStorage();
 		$this->userTables = new \SplObjectStorage();
 	}
 
@@ -423,8 +454,8 @@ class SqlQueryBuilder implements IBuilder {
 		}
 
 		$fromClause = [];
-		foreach ($this->tableAliases as $tableName => $tableAlias) {
-			$fromClause[] = $this->provider->escapeIdentifier($tableName) . " AS " . $this->provider->escapeIdentifier($tableAlias);
+		foreach ($this->tableAliases as $table) {   // SplObjectStorage does not allow for key/value foreach
+			$fromClause[] = $this->provider->escapeIdentifier($table->name()) . " AS " . $this->provider->escapeIdentifier($this->tableAliases[$table]);
 		}
 
 		foreach ($this->userTables as $tableQuery) {
@@ -466,14 +497,14 @@ class SqlQueryBuilder implements IBuilder {
 		return ($newLine ? "\n" : '') . str_repeat("\t", $this->indentationLevel + $level);
 	}
 
-	public function addressField($tableName, $columnName) {
-		if (isset($this->tableAliases[$tableName]))
-			$alias = $this->tableAliases[$tableName];
-		elseif ($this->correlatedQuery and isset($this->parent) and isset($this->parent->tableAliases[$tableName]))
-			$alias = $this->parent->tableAliases[$tableName];
+	public function addressField($table, $columnName) {
+		if (isset($this->tableAliases[$table]))
+			$alias = $this->tableAliases[$table];
+		elseif ($this->correlatedQuery and isset($this->parent) and isset($this->parent->tableAliases[$table]))
+			$alias = $this->parent->tableAliases[$table];
 		else {
 			$alias = str_repeat('t', $this->depth + 1) . count($this->tableAliases);
-			$this->tableAliases[$tableName] = $alias;
+			$this->tableAliases[$table] = $alias;
 		}
 
 		$fieldName = $this->provider->escapeIdentifier($alias) . "." . $this->provider->escapeIdentifier($columnName);
@@ -522,7 +553,7 @@ class SqlQueryBuilder implements IBuilder {
 	private $parent = null;
 	private $indentationLevel = 0;
 	private $depth = 0;
-	private $tableAliases = [];
+	private $tableAliases;
 	private $userTables;
 	private $provider;
 	private $bindings = [];
@@ -549,7 +580,7 @@ class DataProvider implements IBuilder {
 	public function createTable($fieldNames, $query) {
 		$table = new \stdClass();
 		foreach ($fieldNames as $fieldName) {
-			if ($fieldName !== '')
+			if ($fieldName !== '')  // TODO: Improve identifier validation
 				$table->{$fieldName} = new UserField($fieldName, $query);
 		}
 
@@ -558,12 +589,12 @@ class DataProvider implements IBuilder {
 
 	public function reflectTable(...$tableNames) {
 		$tables = array_map(function ($tableName) {
-			$table = new \stdClass();
+			$table = new Table($tableName);
 			$query = "show columns from " . $this->escapeIdentifier($tableName);
 
 			foreach ($this->pdo->query($query) as $column) {
 				$columnName = reset($column);
-				$table->{$columnName} = new Field($tableName, $columnName);
+				$table->{$columnName} = new Field($table, $columnName);
 			}
 
 			return $table;
