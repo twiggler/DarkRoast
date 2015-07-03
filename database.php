@@ -96,7 +96,7 @@ class Field extends AggregatableExpression {
 		$this->columnName = $columnName;
 	}
 
-	public function deepCopy($table) {
+	public function copy($table) {
 		return new Field($table, $this->columnName);
 	}
 
@@ -131,21 +131,39 @@ class UserField extends AggregatableExpression {
 	private $query;
 }
 
-class Table {
-	function __construct($identifier) {
+class Table implements \ArrayAccess {
+	function __construct($identifier, array $fields = []) {
 		$this->identifier = $identifier;
+		$this->fields = $fields;
 		$this->_id = uniqid();
 	}
 
-	public function deepCopy() {
+	public function copy() {
 		$clone = new Table($this->identifier);
 
-		foreach($this as $fieldName => $field) {
-			if ($field instanceof Field)
-				$clone->{$fieldName} = $field->deepCopy($clone);
+		foreach($this->fields as $fieldName => $field) {
+			$clone->fields[$fieldName] = $field->copy($clone);
 		}
 
 		return($clone);
+	}
+
+	public function offsetExists($offset) {
+		return isset($this->fields[$offset]);
+	}
+
+	public function offsetGet($offset) {
+		return isset($this->fields[$offset]) ? $this->fields[$offset] : null;
+	}
+
+	public function offsetSet($offset, $value) {
+		if (is_null($offset)) throw new \InvalidArgumentException("Field must have an identifier");
+
+		$this->fields[$offset] = $value;
+	}
+
+	public function offsetUnset($offset) {
+		unset($this->fields[$offset]);
 	}
 
 	public function name() {
@@ -153,6 +171,7 @@ class Table {
 	}
 
 	private $identifier;
+	private $fields;
 	private $_id;
 }
 
@@ -507,8 +526,7 @@ class SqlQueryBuilder implements IBuilder {
 			$this->tableAliases[$table] = $alias;
 		}
 
-		$fieldName = $this->provider->escapeIdentifier($alias) . "." . $this->provider->escapeIdentifier($columnName);
-		return $fieldName;
+		return $this->provider->escapeIdentifier($alias) . "." . $this->provider->escapeIdentifier($columnName);
 	}
 
 	public function addressUserField($query, $columnName) {
@@ -521,8 +539,7 @@ class SqlQueryBuilder implements IBuilder {
 			$this->userTables[$query] = $alias;
 		}
 
-		$fieldName = $this->provider->escapeIdentifier($alias) . "." . $this->provider->escapeIdentifier($columnName);
-		return $fieldName;
+		return $this->provider->escapeIdentifier($alias) . "." . $this->provider->escapeIdentifier($columnName);
 	}
 
 	public function addGroupingField($fieldExpression) {
@@ -578,10 +595,10 @@ class DataProvider implements IBuilder {
 	}
 
 	public function createTable($fieldNames, $query) {
-		$table = new \stdClass();
+		$table = [];
 		foreach ($fieldNames as $fieldName) {
 			if ($fieldName !== '')  // TODO: Improve identifier validation
-				$table->{$fieldName} = new UserField($fieldName, $query);
+				$table[$fieldName] = new UserField($fieldName, $query);
 		}
 
 		return $table;
@@ -590,12 +607,12 @@ class DataProvider implements IBuilder {
 	public function reflectTable(...$tableNames) {
 		$tables = array_map(function ($tableName) {
 			$table = new Table($tableName);
-			$query = "show columns from " . $this->escapeIdentifier($tableName);
 
+			$query = "show columns from " . $this->escapeIdentifier($tableName);
 			foreach ($this->pdo->query($query) as $column) {
 				$columnName = reset($column);
-				$table->{$columnName} = new Field($table, $columnName);
-			}
+				$table[$columnName] = new Field($table, $columnName);
+			};
 
 			return $table;
 		}, $tableNames);

@@ -33,7 +33,7 @@ Then, make the tables in our data source available as Php variables using the fo
 ```
 list($recipe, $tag) = $provider->reflectTable('recipe', 'recipe_tag');
 ```
-The objects `$recipe` and `$tag` now contain public member fields representing Dark Roast *fields*; these fields can now be used in Dark Roast expressions. 
+The objects `$recipe` and `$tag` implement array-like access to *fields*; these fields can now be used in Dark Roast expressions. 
 
 See the [basic demo](demo/basic.php) for a in-depth example.      
 
@@ -44,3 +44,13 @@ See the [aggregates demo](demo/aggregates.php) for an example.
 
 ## Terminal field methods
 The methods `name`, `sortAscending`, or`sortDescending` are meant to be used at the end of a field expression. Resulting field expression of a call to one of the methods in the interface `ITerminalFieldExpression`, that is either `name`, `sortAscending`, or `sortDescending`, provide solely for further calls to members of `ITerminalFieldExpression`. 
+
+## Join same table multiple times
+To join a table multiple times, you need to copy it first using `copy()`; the resulting table expression can now be used in queries.
+Example:
+```
+$recipe = $recipe->copy();
+select($recipe['cook_time'],
+       $recipe2['marinate_time'])
+        ->filter($recipe['id']->equals($recipe2['id']));
+```

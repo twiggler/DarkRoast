@@ -8,20 +8,20 @@ $pdo = new PDO('mysql:host=localhost; dbname=recipe', "dev", "Ig8ajGd1vtZZSaa99k
 $provider = new \DarkRoast\DataBase\DataProvider($pdo);
 $recipe = $provider->reflectTable('recipe');
 
-$aggregates = table(select($recipe->cook_time->max()
+$aggregates = table(select($recipe['cook_time']->max()
                                              ->name('maxCookingTime'),
-                           $recipe->prep_time->min(),
-                           $recipe->id->count(),
-                           $recipe->rest_time->sum()
+                           $recipe['prep_time']->min(),
+                           $recipe['id']->count(),
+                           $recipe['rest_time']->sum()
                                              ->name('sumRestTime'),
-                           $recipe->group->group())->groupFilter($recipe->cook_time->max()
+                           $recipe['group']->group())->groupFilter($recipe['cook_time']->max()
                                                                                    ->lessThan(70)),
                     $provider);
 
-$query = select($recipe->title,
-                $aggregates->maxCookingTime->sortDescending(),
-                $aggregates->maxCookingTime->sortAscending(), // Last sort takes precedence.
-                $aggregates->sumRestTime)->filter($recipe->group->equals($aggregates->group));
+$query = select($recipe['title'],
+                $aggregates['maxCookingTime']->sortDescending(),
+                $aggregates['maxCookingTime']->sortAscending(), // Last sort takes precedence.
+                $aggregates['sumRestTime'])->filter($recipe['group']->equals($aggregates['group']));
 
 $darkRoast = $query->build($provider);
 echo $darkRoast->querySource();

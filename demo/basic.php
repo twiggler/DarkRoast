@@ -16,33 +16,33 @@ list($recipe, $tag) = $provider->reflectTable('recipe', 'recipe_tag');
 
 $params = array('offset' => 0, 'tag' => array(38, 39), 'video' => 'ja', 'limit' => 7);
 
-$query = select($recipe->id->sortAscending(),
-                $recipe->title,
-                $recipe->image_url->name('imageUrl'),     // Field is designated 'imageUrl' in result tuple
-                $recipe->summary,
-                $recipe->ingredients);
+$query = select($recipe['id']->sortAscending(),
+                $recipe['title'],
+                $recipe['image_url']->name('imageUrl'),     // Field is designated 'imageUrl' in result tuple
+                $recipe['summary'],
+                $recipe['ingredients']);
 
-$cookingTime = sum($recipe->prep_time, $recipe->cook_time, $recipe->prove_time, $recipe->marinate_time,
-                   $recipe->rest_time, $recipe->chill_time, $recipe->soak_time);    // Define a new field
+$cookingTime = sum($recipe['prep_time'], $recipe['cook_time'], $recipe['prove_time'], $recipe['marinate_time'],
+                   $recipe['rest_time'], $recipe['chill_time'], $recipe['soak_time']);    // Define a new field
 
 if (isset($params['maxcalories']))
-	$query->filter($recipe->kcals->lessThan($params['maxcalories']));
+	$query->filter($recipe['kcals']->lessThan($params['maxcalories']));
 
 // The placeholder is bound on query execution.
 // Query::_and calls Query::filter when no filter is set.
 $query->_and($cookingTime->lessThan(Placeholders::$_1));
 
-$query->_and($recipe->group->equals(coalesce($params, 'group',
+$query->_and($recipe['group']->equals(coalesce($params, 'group',
                                              null))); // Filter is optimized away when operand is null.
 
 
-$query->_and($recipe->video->equals(isset($params['video']) ? 1 : null),
-             $recipe->id->isDefined());     // Multiple filter expressions are by default combined using the and operator
+$query->_and($recipe['video']->equals(isset($params['video']) ? 1 : null),
+             $recipe['id']->isDefined());     // Multiple filter expressions are by default combined using the and operator
 
 if (isset($params['tag'])) {
 	foreach ($params['tag'] as $tagId) {
-		$existsFilter = exists($tag->recipe_id->equals($recipe->id),
-		                       $tag->tag_id->equals($tagId));
+		$existsFilter = exists($tag['recipe_id']->equals($recipe['id']),
+		                       $tag['tag_id']->equals($tagId));
 		$query->_and($existsFilter);
 	}
 }
