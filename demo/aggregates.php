@@ -9,13 +9,13 @@ $provider = new \DarkRoast\DataBase\DataProvider($pdo);
 $recipe = $provider->reflectTable('recipe');
 
 $aggregates = table(select($recipe['cook_time']->max()
-                                             ->name('maxCookingTime'),
+                                               ->name('maxCookingTime'),
                            $recipe['prep_time']->min(),
                            $recipe['id']->count(),
                            $recipe['rest_time']->sum()
-                                             ->name('sumRestTime'),
+                                               ->name('sumRestTime'),
                            $recipe['group']->group())->groupFilter($recipe['cook_time']->max()
-                                                                                   ->lessThan(70)),
+                                                                                       ->lessThan(70)),
                     $provider);
 
 $query = select($recipe['title'],

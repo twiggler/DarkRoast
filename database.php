@@ -65,28 +65,68 @@ abstract class FieldExpression extends TerminalFieldExpression implements IField
 
 abstract class AggregatableExpression extends FieldExpression implements IAggregateableExpression {
 	public function sum() {
-		return new AggregatedField($this, 'sum', false);
+		return new AggregatedField(new Aggregation($this, 'sum', false));
 	}
 
 	public function max() {
-		return new AggregatedField($this, 'max', false);
+		return new AggregatedField(new Aggregation($this, 'max', false));
 	}
 
 	public function min() {
-		return new AggregatedField($this, 'min', false);
+		return new AggregatedField(new Aggregation($this, 'min', false));
 	}
 
 	public function count() {
-		return new AggregatedField($this, 'count', false);
+		return new AggregatedField(new Aggregation($this, 'count', false));
 	}
 
 	public function countUnique() {
-		return new AggregatedField($this, 'count', true);
+		return new AggregatedField(new Aggregation($this, 'count', true));
 	}
 
 	public function group() {
 		return new GroupingField($this);
 	}
+}
+
+class AggregatedField extends FieldExpression {
+	function __construct($field) {
+		$this->field = $field;
+	}
+
+	public function evaluate(SqlQueryBuilder $queryBuilder) {
+		return $this->field->evaluate($queryBuilder);
+	}
+
+	public function alias() {
+		return $this->field->alias();
+	}
+
+	public function add($operand) {
+		$this->field = new BinaryFieldExpression($this->field, $operand, '+', false);
+
+		return $this;
+	}
+
+	public function minus($operand) {
+		$this->field = new BinaryFieldExpression($this->field, $operand, '-', false);
+
+		return $this;
+	}
+
+	public function multiply($operand) {
+		$this->field = new BinaryFieldExpression($this->field, $operand, '*', false);
+
+		return $this;
+	}
+
+	public function divide($operand) {
+		$this->field = new BinaryFieldExpression($this->field, $operand, '/', false);
+
+		return $this;
+	}
+
+	private $field;
 }
 
 
@@ -176,7 +216,7 @@ class Table implements \ArrayAccess {
 }
 
 
-class AggregatedField extends FieldExpression {
+class Aggregation implements IQueryPart { // TODO Improve naming with respect to AggregatedField
 	function __construct($field, $function, $distinct) {
 		$this->field = $field;
 		$this->function = $function;
