@@ -13,6 +13,10 @@ interface IDarkRoast {
 	public function execute(...$bindings);
 }
 
+interface IReorderable {
+	public function parenthesis();
+}
+
 interface ITerminalFieldExpression {
 	public function alias();
 
@@ -23,7 +27,7 @@ interface ITerminalFieldExpression {
 	public function sortDescending();
 }
 
-interface IFieldExpression extends ITerminalFieldExpression {
+interface IFieldExpression extends ITerminalFieldExpression, IReorderable {
 	public function equals($operand);
 
 	public function lessThan($operand);
@@ -59,8 +63,7 @@ interface IBuilder {
 	public function build($selectors, $filter = null, $groupFilter = null, $offset = 0, $limit = null);
 }
 
-interface IFilter
-{
+interface IFilter extends IReorderable {
     public function _and($condition);
 
     public function _or($condition);
@@ -233,4 +236,8 @@ function exists(IFilter ...$conditions) {
 
 function coalesce(array $array, $key, $default = null) {
 	return isset($array[$key]) ? $array[$key] : $default;
+}
+
+function p(IReorderable $queryElement) {
+	return $queryElement->parenthesis();
 }

@@ -61,6 +61,10 @@ abstract class FieldExpression extends TerminalFieldExpression implements IField
 	public function isUndefined() {
 		return new UnaryFilterExpression($this, 'is null', UnaryFilterExpression::POSTFIX);
 	}
+
+	public function parenthesis(){
+		return new ReorderedFieldExpression($this);
+	}
 }
 
 abstract class AggregatableExpression extends FieldExpression implements IAggregateableExpression {
@@ -122,6 +126,12 @@ class AggregatedField extends FieldExpression {
 
 	public function divide($operand) {
 		$this->field = new BinaryFieldExpression($this->field, $operand, '/', false);
+
+		return $this;
+	}
+
+	public function parenthesis() {
+		$this->field = new ReorderedFieldExpression($this);
 
 		return $this;
 	}
@@ -281,6 +291,22 @@ class BinaryFieldExpression extends AggregatableExpression {
 	private $operator;
 }
 
+class ReorderedFieldExpression extends AggregatableExpression {
+	function __construct($field) {
+		$this->field = $field;
+	}
+
+	public function evaluate(SqlQueryBuilder $queryBuilder) {
+		return "(" . $this->field->evaluate($queryBuilder) . ")";
+	}
+
+	public function alias() {
+		return "";
+	}
+
+	private $field;
+}
+
 class TerminalField implements IQueryPart, ITerminalFieldExpression {
 	const ASCENDING = 1;
 	const DESCENDING = -1;
@@ -359,6 +385,22 @@ abstract class Filter implements IQueryPart, IFilter  {
 	public function exists() {
 		return new ExistsFilter($this);
 	}
+
+	public function parenthesis(){
+		return new ReorderedFilterExpression($this);
+	}
+}
+
+class ReorderedFilterExpression extends Filter {
+	function __construct($field) {
+		$this->field = $field;
+	}
+
+	public function evaluate(SqlQueryBuilder $queryBuilder) {
+		return "(" . $this->field->evaluate($queryBuilder) . ")";
+	}
+
+	private $field;
 }
 
 class NullFilter implements IQueryPart, IFilter {
@@ -375,6 +417,10 @@ class NullFilter implements IQueryPart, IFilter {
 	}
 
 	public function exists() {
+		return $this;
+	}
+
+	public function parenthesis() {
 		return $this;
 	}
 }
