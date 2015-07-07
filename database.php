@@ -226,7 +226,7 @@ class Table implements \ArrayAccess {
 }
 
 
-class Aggregation implements IQueryPart { // TODO Improve naming with respect to AggregatedField
+class Aggregation extends FieldExpression { // TODO Improve naming with respect to AggregatedField
 	function __construct($field, $function, $distinct) {
 		$this->field = $field;
 		$this->function = $function;
@@ -683,8 +683,7 @@ class DataProvider implements IBuilder {
 	public function createTable($fieldNames, $query) {
 		$table = [];
 		foreach ($fieldNames as $fieldName) {
-			if ($fieldName !== '')  // TODO: Improve identifier validation
-				$table[$fieldName] = new UserField($fieldName, $query);
+			$table[$fieldName] = new UserField($fieldName, $query);
 		}
 
 		return $table;

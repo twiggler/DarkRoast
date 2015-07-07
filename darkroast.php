@@ -145,9 +145,21 @@ class Query {
     }
 
 	public function table($provider) {
-		return $provider->createTable(array_map(function($selector) use($provider) {
-			return $selector->alias($provider);
-		}, $this->selectors), $this);
+		$userFieldNum = 0;
+
+		$fieldAliases = [];
+		foreach ($this->selectors as &$selector) {
+			$userFieldNum++;
+			$alias = $selector->alias();
+			if ($alias === '') {
+				$alias = "UserField{$userFieldNum}";
+				$selector = $selector->name($alias);
+			}
+
+			$fieldAliases[] = $alias;
+		}
+
+		return $provider->createTable($fieldAliases, $this);
 	}
 
 	/**
