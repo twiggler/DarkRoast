@@ -47,8 +47,7 @@ if (isset($params['tag'])) {
 	}
 }
 
-$query->offset($params['offset'])
-      ->limit(coalesce($params, 'limit'));
+$query->window($params['offset'], coalesce($params, 'limit'));
 
 $darkRoast = $query->build($provider);
 print_r($darkRoast->execute(60));           // cookingTime is less than 60 minutes.

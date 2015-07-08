@@ -8,14 +8,15 @@ $pdo = new PDO('mysql:host=localhost; dbname=recipe', "dev", "Ig8ajGd1vtZZSaa99k
 $provider = new \DarkRoast\DataBase\DataProvider($pdo);
 $recipe = $provider->reflectTable('recipe');
 
-$aggregates = table(select($recipe['cook_time']->max()
-                                               ->name('maxCookingTime'),
-                           $recipe['prep_time']->min(),
-                           $recipe['id']->count(),
-                           $recipe['rest_time']->sum()
-                                               ->name('sumRestTime'),
-                           $recipe['group']->group())->groupFilter($recipe['cook_time']->max()
-                                                                                       ->lessThan(70)),
+$recipe2 = $recipe->copy();
+$aggregates = table(select($recipe2['cook_time']->max()
+                                                ->name('maxCookingTime'),
+                           $recipe2['prep_time']->min(),
+                           $recipe2['id']->count(),
+                           $recipe2['rest_time']->sum()
+                                                ->name('sumRestTime'),
+                           $recipe2['group']->group())->groupFilter($recipe2['cook_time']->max()
+                                                                                         ->lessThan(70)),
                     $provider);
 
 $query = select($recipe['title'],
@@ -38,8 +39,8 @@ FROM
 	CROSS JOIN (
 	SELECT
 		max(`tt0`.`cook_time`) AS maxCookingTime,
-		min(`tt0`.`prep_time`),
-		count(`tt0`.`id`),
+		min(`tt0`.`prep_time`) AS UserField2,
+		count(`tt0`.`id`) AS UserField3,
 		sum(`tt0`.`rest_time`) AS sumRestTime,
 		`tt0`.`group`
 	FROM

@@ -60,7 +60,7 @@ interface IAggregateableExpression extends IFieldExpression {
 }
 
 interface IBuilder {
-	public function build($selectors, $filter = null, $groupFilter = null, $offset = 0, $limit = null);
+	public function build($selectors, $filter = null, $groupFilter = null, $window = [0, null]);
 }
 
 interface IFilter extends IReorderable {
@@ -141,7 +141,7 @@ class Query {
     }
 
     public function build(IBuilder $builder) {
-        return $builder->build($this->selectors, $this->filter, $this->groupFilter, $this->offset, $this->limit);
+        return $builder->build($this->selectors, $this->filter, $this->groupFilter, $this->window);
     }
 
 	public function table($provider) {
@@ -175,25 +175,17 @@ class Query {
 		return $darkRoast->execute(...$params);
 	}
 
-    public function offset($offset) {
-        if (!is_int($offset)) throw new \InvalidArgumentException('Offset must be an integer.');
-        if ($offset < 0) throw new \DomainException('Offset must be positive');
+	public function window($offset, $limit = null) {
+		if (!is_int($offset)) throw new \InvalidArgumentException('Offset must be an integer.');
+		if ($offset < 0) throw new \DomainException('Offset must be positive');
+		if (isset($limit)) {
+			if (!is_int($limit)) throw new \InvalidArgumentException('Limit must be an integer.');
+			if ($limit < 0) throw new \DomainException('Offset must be positive');
+		}
 
-        $this->offset = $offset;
-
-        return $this;
-    }
-
-    public function limit($limit) {
-        if (isset($limit)) {
-	        if (!is_int($limit)) throw new \InvalidArgumentException('Limit must be an integer.');
-	        if ($limit < 0) throw new \DomainException('Offset must be positive');
-        }
-
-        $this->limit = $limit;
-
-        return $this;
-    }
+		$this->window = [$offset, $limit];
+		return $this;
+	}
 
     private function addConditions(array $conditions, $logicalOperator, &$targetFilter) {
         $firstCondition = isset($targetFilter) ? $targetFilter : array_shift($conditions);
@@ -207,8 +199,7 @@ class Query {
     private $selectors = [];
     private $filter = null;
 	private $groupFilter = null;
-    private $offset = 0;
-    private $limit = null;
+	private $window = [0, null];
 }
 
 /**

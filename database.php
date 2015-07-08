@@ -483,7 +483,7 @@ class ExistsFilter extends Filter implements IQueryPart {
 	}
 
 	function evaluate(SqlQueryBuilder $queryBuilder) {
-		$subQueryBuilder = $queryBuilder->createChild(1, true /* Correlated sub-query */);
+		$subQueryBuilder = $queryBuilder->createChild(1);
 		$subQuerySql = $subQueryBuilder->build([new ConstantField(1)], $this->condition);
 		return "EXISTS (" .  $subQuerySql . ")";
 	}
@@ -492,9 +492,9 @@ class ExistsFilter extends Filter implements IQueryPart {
 }
 
 class DarkRoast implements IDarkRoast {
-	function __construct($querySource, \PDOStatement $pdpPreparedQuery, $bindings) {
+	function __construct($querySource, \PDOStatement $pdoPreparedQuery, $bindings) {
 		$this->querySource = $querySource;
-		$this->pdpPreparedQuery = $pdpPreparedQuery;
+		$this->pdoPreparedQuery = $pdoPreparedQuery;
 		$this->bindValues($bindings);
 	}
 
@@ -502,7 +502,7 @@ class DarkRoast implements IDarkRoast {
 		array_walk($bindings, function ($value, $key) {
 			$paramType = \PDO::PARAM_STR;
 			if (is_integer($value)) $paramType = \PDO::PARAM_INT;
-			$this->pdpPreparedQuery->bindValue($key, $value, $paramType);
+			$this->pdoPreparedQuery->bindValue($key, $value, $paramType);
 		}, $bindings);
 	}
 
@@ -514,16 +514,16 @@ class DarkRoast implements IDarkRoast {
 		}
 		$this->bindValues($keyedBindings);
 
-		$this->pdpPreparedQuery->execute();
+		$this->pdoPreparedQuery->execute();
 
-		return $this->pdpPreparedQuery->fetchAll(\PDO::FETCH_ASSOC);
+		return $this->pdoPreparedQuery->fetchAll(\PDO::FETCH_ASSOC);
 	}
 
 	public function querySource() {
 		return $this->querySource;
 	}
 
-	private $pdpPreparedQuery;
+	private $pdoPreparedQuery;
 	private $querySource;
 }
 
@@ -534,17 +534,16 @@ class SqlQueryBuilder implements IBuilder {
 		$this->userTables = new \SplObjectStorage();
 	}
 
-	public function createChild($indentationLevel = 0, $correlatedQuery = false) {
+	public function createChild($indentationLevel = 0) {
 		$childBuilder = new SqlQueryBuilder($this->provider);
 		$childBuilder->parent = $this;
 		$childBuilder->depth = $this->depth + 1;
 		$childBuilder->indentationLevel = $this->indentationLevel + $indentationLevel + 1;
-		$childBuilder->correlatedQuery = $correlatedQuery;
 
 		return $childBuilder;
 	}
 
-	public function build($selectors, $filter = null, $groupFilter = null, $offset = 0, $limit = null) {
+	public function build($selectors, $filter = null, $groupFilter = null, $window = [0, null]) {
 		$selectClauses = array_map(function ($queryElement) {
 			return $queryElement->evaluate($this);
 		}, $selectors);
@@ -591,8 +590,8 @@ class SqlQueryBuilder implements IBuilder {
 			          implode(",\n\t", $orderClause) . $this->indent(0);
 		}
 
-		if ($offset > 0 or isset($limit)) {
-			$query .= "LIMIT {$offset}" . (isset($limit) ? ", {$limit}" : "");
+		if ($window[0] > 0 or isset($window[1])) {
+			$query .= "LIMIT {$window[0]}" . (isset($window[1]) ? ", {$window[1]}" : "");
 		}
 
 		return $query;
@@ -605,7 +604,7 @@ class SqlQueryBuilder implements IBuilder {
 	public function addressField($table, $columnName) {
 		if (isset($this->tableAliases[$table]))
 			$alias = $this->tableAliases[$table];
-		elseif ($this->correlatedQuery and isset($this->parent) and isset($this->parent->tableAliases[$table]))
+		elseif (isset($this->parent) and isset($this->parent->tableAliases[$table]))
 			$alias = $this->parent->tableAliases[$table];
 		else {
 			$alias = str_repeat('t', $this->depth + 1) . count($this->tableAliases);
@@ -618,7 +617,7 @@ class SqlQueryBuilder implements IBuilder {
 	public function addressUserField($query, $columnName) {
 		if (isset($this->userTables[$query]))
 			$alias = $this->userTables[$query];
-		elseif ($this->correlatedQuery and isset($this->parent) and isset($this->parent->userTables[$query]))
+		elseif (isset($this->parent) and isset($this->parent->userTables[$query]))
 			$alias = $this->parent->userTables[$query];
 		else {
 			$alias = str_repeat('u', $this->depth + 1) . count($this->userTables);
@@ -662,7 +661,6 @@ class SqlQueryBuilder implements IBuilder {
 	private $bindings = [];
 	private $groupingFields = [];
 	private $sortFields = null;
-	private $correlatedQuery = false;
 }
 
 class DataProvider implements IBuilder {
@@ -670,9 +668,9 @@ class DataProvider implements IBuilder {
 		$this->pdo = $pdo;
 	}
 
-	public function build($selectors, $filter = null, $groupFilter = null, $offset = 0, $limit = null) {
+	public function build($selectors, $filter = null, $groupFilter = null, $window = [0, null]) {
 		$queryBuilder = new SqlQueryBuilder($this);
-		$sqlStatement = $queryBuilder->build($selectors, $filter, $groupFilter, $offset, $limit);
+		$sqlStatement = $queryBuilder->build($selectors, $filter, $groupFilter, $window);
 		return new DarkRoast($sqlStatement, $this->pdo->prepare($sqlStatement), $queryBuilder->bindings());
 	}
 
