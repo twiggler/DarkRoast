@@ -1,12 +1,12 @@
 <?php
 
-require_once('../database.php');    // Include the MySql Data Provider.
+require_once('providers/mysql/mysql.php');   // Include the MySql Data Provider.
 
 use function DarkRoast\select as select;
 use function DarkRoast\exists as exists;
 use function DarkRoast\sum as sum;
 use function DarkRoast\coalesce as coalesce;
-use DarkRoast\DataBase\DataProvider as DataProvider;
+use DarkRoast\MySQL\DataProvider as DataProvider;
 use DarkRoast\Placeholders as Placeholders;
 
 

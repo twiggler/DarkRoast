@@ -1,11 +1,12 @@
 <?php
 
-require_once('../database.php');
+require_once('providers/mysql/mysql.php');
+
 use function DarkRoast\select as select;
 use function DarkRoast\table as table;
 
 $pdo = new PDO('mysql:host=localhost; dbname=recipe', "dev", "Ig8ajGd1vtZZSaa99kvZ");
-$provider = new \DarkRoast\DataBase\DataProvider($pdo);
+$provider = new \DarkRoast\MySQL\DataProvider($pdo);
 $recipe = $provider->reflectTable('recipe');
 
 $recipe2 = $recipe->copy();
