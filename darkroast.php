@@ -2,6 +2,9 @@
 
 namespace DarkRoast;
 
+use DarkRoast\MySQL\BinaryFilterExpression;
+use DarkRoast\MySQL\NullFilter;
+
 interface IDarkRoast {
 	/**
 	 * Execute the build query and returns the result as an array.
@@ -27,11 +30,19 @@ interface ITerminalFieldExpression {
 	public function sortDescending();
 }
 
-interface IFieldExpression extends ITerminalFieldExpression, IReorderable {
+interface IEqualityFilterExpression {
 	public function equals($operand);
 
 	public function lessThan($operand);
 
+	public function greaterThan($operand);
+
+	public function lessOrEqualThan($operand);
+
+	public function greaterOrEqualThan($operand);
+}
+
+interface IFieldExpression extends ITerminalFieldExpression, IReorderable, IEqualityFilterExpression {
 	public function add($operand);
 
 	public function minus($operand);
@@ -67,6 +78,8 @@ interface IFilter extends IReorderable {
     public function _and($condition);
 
     public function _or($condition);
+
+	public function not($condition);
 
 	public function exists();
 }
@@ -188,9 +201,9 @@ class Query {
 	}
 
     private function addConditions(array $conditions, $logicalOperator, &$targetFilter) {
-        $firstCondition = isset($targetFilter) ? $targetFilter : array_shift($conditions);
+        $firstCondition = isset($targetFilter) ? $targetFilter : p(array_shift($conditions));
 	    $targetFilter = array_reduce($conditions, function($filter, $condition) use($logicalOperator) {
-		    return $filter->$logicalOperator($condition);
+		    return $filter->$logicalOperator(p($condition));
 	    }, $firstCondition);
 
         return $this;

@@ -12,9 +12,9 @@ use DarkRoast\Placeholders as Placeholders;
 
 $pdo = new PDO('mysql:host=localhost; dbname=recipe', "dev", "Ig8ajGd1vtZZSaa99kvZ");
 $provider = new DataProvider($pdo);
-list($recipe, $tag) = $provider->reflectTable('recipe', 'recipe_tag');
+list($recipe, $recipe_tag, $tag) = $provider->reflectTable('recipe', 'recipe_tag', 'tag');
 
-$params = array('offset' => 0, 'tag' => array(38, 39), 'video' => 'ja', 'limit' => 7);
+$params = ['offset' => 0, 'tag' => [38, 39], 'video' => 'ja', 'limit' => 7];
 
 $query = select($recipe['id']->sortAscending(),
                 $recipe['title'],
@@ -30,7 +30,7 @@ if (isset($params['maxcalories']))
 
 // The placeholder is bound on query execution.
 // Query::_and calls Query::filter when no filter is set.
-$query->_and($cookingTime->lessThan(Placeholders::$_1));
+$query->_and($cookingTime->lessOrEqualThan(Placeholders::$_1));
 
 $query->_and($recipe['group']->equals(coalesce($params, 'group',
                                              null))); // Filter is optimized away when operand is null.
@@ -41,8 +41,8 @@ $query->_and($recipe['video']->equals(isset($params['video']) ? 1 : null),
 
 if (isset($params['tag'])) {
 	foreach ($params['tag'] as $tagId) {
-		$existsFilter = exists($tag['recipe_id']->equals($recipe['id']),
-		                       $tag['tag_id']->equals($tagId));
+		$existsFilter = exists($recipe_tag['recipe_id']->equals($recipe['id']),
+		                       $recipe_tag['tag_id']->equals($tag['id'])->equals($tagId));
 		$query->_and($existsFilter);
 	}
 }

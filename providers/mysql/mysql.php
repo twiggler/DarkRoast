@@ -7,6 +7,50 @@ require_once('fields.php');
 use DarkRoast\IBuilder;
 use DarkRoast\IDarkRoast;
 
+class Table implements \ArrayAccess {
+	function __construct($identifier, array $fields = []) {
+		$this->identifier = $identifier;
+		$this->fields = $fields;
+		$this->_id = uniqid();
+	}
+
+	public function copy() {
+		$clone = new Table($this->identifier);
+
+		foreach ($this->fields as $fieldName => $field) {
+			$clone->fields[$fieldName] = $field->copy($clone);
+		}
+
+		return ($clone);
+	}
+
+	public function offsetExists($offset) {
+		return isset($this->fields[$offset]);
+	}
+
+	public function offsetGet($offset) {
+		return isset($this->fields[$offset]) ? $this->fields[$offset] : null;
+	}
+
+	public function offsetSet($offset, $value) {
+		if (is_null($offset)) throw new \InvalidArgumentException("Field must have an identifier");
+
+		$this->fields[$offset] = $value;
+	}
+
+	public function offsetUnset($offset) {
+		unset($this->fields[$offset]);
+	}
+
+	public function name() {
+		return $this->identifier;
+	}
+
+	private $identifier;
+	private $fields;
+	private $_id;
+}
+
 class DarkRoast implements IDarkRoast {
 	function __construct($querySource, \PDOStatement $pdoPreparedQuery, $bindings) {
 		$this->querySource = $querySource;

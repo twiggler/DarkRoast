@@ -4,6 +4,7 @@ namespace DarkRoast\MySql;
 
 require_once('ISqlQueryBuilder.php');
 
+use DarkRoast\IEqualityFilterExpression;
 use DarkRoast\IFilter;
 
 abstract class Filter implements IQueryPart, IFilter {
@@ -13,6 +14,10 @@ abstract class Filter implements IQueryPart, IFilter {
 
 	public function _or($condition) {
 		return new BinaryFilterExpression($this, $condition, "OR", true);
+	}
+
+	public function not($condition) {
+		return new UnaryFilterExpression($this, 'NOT', UnaryFilterExpression::PREFIX);
 	}
 
 	public function exists() {
@@ -49,11 +54,27 @@ class NullFilter implements IQueryPart, IFilter {
 		return $condition;
 	}
 
+	public function not($operand) {
+		return $this;
+	}
+
 	public function exists() {
 		return $this;
 	}
 
 	public function parenthesis() {
+		return $this;
+	}
+
+	public function equals($operand) {
+		return $this;
+	}
+
+	public function lessThan($operand) {
+		return $this;
+	}
+
+	public function greaterThan($operand) {
 		return $this;
 	}
 }
@@ -80,7 +101,7 @@ class UnaryFilterExpression extends Filter {
 	private $operand;
 }
 
-class BinaryFilterExpression extends Filter {
+class BinaryFilterExpression extends Filter implements IEqualityFilterExpression {
 	function __construct(IQueryPart $operand1, $operand2, $operator, $indent) {
 		$this->operand1 = $operand1;
 		$this->operand2 = $operand2;
@@ -102,6 +123,26 @@ class BinaryFilterExpression extends Filter {
 			return $part1 . " {$this->operator}" . ($this->indent ? $queryBuilder->indent(1) : ' ') . $part2;
 		else
 			return $part1 . $part2;
+	}
+
+	public function equals($operand) {
+		return $this->_and($this->operand2->equals($operand));
+	}
+
+	public function lessThan($operand) {
+		return $this->_and($this->operand2->lessThan($operand));
+	}
+
+	public function greaterThan($operand) {
+		return $this->_and($this->operand2->greaterThan($operand));
+	}
+
+	public function lessOrEqualThan($operand) {
+		return $this->_and($this->operand2->lessOrEqualThan($operand));
+	}
+
+	public function greaterOrEqualThan($operand) {
+		return $this->_and($this->operand2->greaterOrEqualThan($operand));
 	}
 
 	private $operand1;
