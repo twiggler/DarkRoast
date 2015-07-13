@@ -84,41 +84,6 @@ interface IFilter extends IReorderable {
 	public function exists();
 }
 
-class Placeholder {
-    private $_index;
-
-    function __construct($index)
-    {
-        $this->_index = $index;
-    }
-
-    public function index() {
-        return $this->_index;
-    }
-}
-
-class Placeholders {
-    static public $_1;
-    static public $_2;
-    static public $_3;
-    static public $_4;
-    static public $_5;
-    static public $_6;
-    static public $_7;
-    static public $_8;
-    static public $_9;
-}
-
-Placeholders::$_1 = new Placeholder(1);
-Placeholders::$_2 = new Placeholder(2);
-Placeholders::$_3 = new Placeholder(3);
-Placeholders::$_4 = new Placeholder(4);
-Placeholders::$_5 = new Placeholder(5);
-Placeholders::$_6 = new Placeholder(6);
-Placeholders::$_7 = new Placeholder(7);
-Placeholders::$_8 = new Placeholder(8);
-Placeholders::$_9 = new Placeholders(9);
-
 class Query {
 	/**
 	 * Add selectors to query.

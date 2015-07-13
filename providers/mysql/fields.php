@@ -6,9 +6,8 @@ require_once('filters.php');
 require_once('terminalfields.php');
 
 use DarkRoast\IAggregateableExpression;
-use DarkRoast\IFieldExpression;
 
-abstract class FieldExpression extends FieldFilterExpression  {
+abstract class FieldExpression extends FieldFilterExpression {
 	public function add($operand) {
 		return new BinaryFieldExpression($this, $operand, '+', false);
 	}
@@ -27,6 +26,10 @@ abstract class FieldExpression extends FieldFilterExpression  {
 
 	public function parenthesis() {
 		return new ReorderedFieldExpression($this);
+	}
+
+	public function alias() {
+		return '';
 	}
 }
 
@@ -127,25 +130,12 @@ class AggregatedField extends FieldFilterExpression {
 class BinaryFieldExpression extends AggregatableExpression {
 	function __construct(IQueryPart $field1, $field2, $operator) {
 		$this->field1 = $field1;
-		$this->field2 = $field2;
+		$this->field2 = (is_string($field2) or is_numeric($field2)) ? new UserConstantField($field2) : $field2;
 		$this->operator = $operator;
 	}
 
 	public function evaluate(ISqlQueryBuilder $queryBuilder) {
-		$part = $this->field1->evaluate($queryBuilder) . " {$this->operator} ";
-
-		if (is_numeric($this->field2))
-			$part .= $queryBuilder->addBinding($this->field2);
-		elseif ($this->field2 instanceof IFieldExpression)
-			$part .= $this->field2->evaluate($queryBuilder);
-		else
-			throw new \InvalidArgumentException("Invalid operand type specified for binary field expression");
-
-		return $part;
-	}
-
-	public function alias() {
-		return "";
+		return $this->field1->evaluate($queryBuilder) . " {$this->operator} " . $this->field2->evaluate($queryBuilder);
 	}
 
 	private $field1;
@@ -160,10 +150,6 @@ class ReorderedFieldExpression extends AggregatableExpression {
 
 	public function evaluate(ISqlQueryBuilder $queryBuilder) {
 		return "(" . $this->field->evaluate($queryBuilder) . ")";
-	}
-
-	public function alias() {
-		return "";
 	}
 
 	private $field;
@@ -196,13 +182,20 @@ class ConstantField extends FieldExpression {
 		return strval($this->expression);
 	}
 
-	public function alias() {
-		return strval($this->expression);
+	private $expression;
+}
+
+class UserConstantField extends FieldExpression {
+	function __construct($expression) {
+		$this->expression = $expression;
+	}
+
+	public function evaluate(ISqlQueryBuilder $queryBuilder) {
+		return $queryBuilder->addBinding($this->expression);
 	}
 
 	private $expression;
 }
-
 
 class Aggregation extends FieldExpression { // TODO Improve naming with respect to AggregatedField
 	function __construct(FieldExpression $field, $function, $distinct) {
@@ -213,10 +206,6 @@ class Aggregation extends FieldExpression { // TODO Improve naming with respect 
 
 	public function evaluate(ISqlQueryBuilder $queryBuilder) {
 		return "{$this->function}(" . ($this->distinct ? 'DISTINCT' : '') . $this->field->evaluate($queryBuilder) . ")";
-	}
-
-	public function alias() {
-		return "";
 	}
 
 	private $field;
@@ -241,4 +230,16 @@ class GroupingField extends FieldExpression {
 	}
 
 	private $field;
+}
+
+class Placeholder extends FieldExpression {
+	function __construct($index) {
+		$this->index = $index;
+	}
+
+	public function evaluate(ISqlQueryBuilder $queryBuilder) {
+		return ":_{$this->index}";
+	}
+
+	private $index;
 }

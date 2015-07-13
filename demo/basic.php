@@ -30,7 +30,7 @@ if (isset($params['maxcalories']))
 
 // The placeholder is bound on query execution.
 // Query::_and calls Query::filter when no filter is set.
-$query->_and($cookingTime->lessOrEqualThan(Placeholders::$_1));
+$query->_and($cookingTime->lessOrEqualThan($provider->placeholder(1)));
 
 $query->_and($recipe['group']->equals(coalesce($params, 'group',
                                              null))); // Filter is optimized away when operand is null.
@@ -53,37 +53,41 @@ $darkRoast = $query->build($provider);
 print_r($darkRoast->execute(60));           // cookingTime is less than 60 minutes.
 echo $darkRoast->querySource();
 
-/* Generated Query (verbatim):
+/* Generated Query:
 SELECT
 	`t0`.`id`,
 	`t0`.`title`,
-	`t0`.`image_url`  as  :b0,
+	`t0`.`image_url` AS imageUrl,
 	`t0`.`summary`,
 	`t0`.`ingredients`
 FROM
 	`recipe` AS `t0`
 WHERE
-	`t0`.`prep_time` + `t0`.`cook_time` + `t0`.`prove_time` + `t0`.`marinate_time` + `t0`.`rest_time` + `t0`.`chill_time` + `t0`.`soak_time` < :_1 AND
-	`t0`.`video` = :b1 AND
-	`t0`.`id` is not null AND
-	EXISTS (
+	(`t0`.`prep_time` + `t0`.`cook_time` + `t0`.`prove_time` + `t0`.`marinate_time` + `t0`.`rest_time` + `t0`.`chill_time` + `t0`.`soak_time` <= :_1) AND
+	(`t0`.`video` = :b0) AND
+	(`t0`.`id` is not null) AND
+	(EXISTS (
 		SELECT
 			1
 		FROM
 			`recipe_tag` AS `tt0`
+			CROSS JOIN `tag` AS `tt1`
 		WHERE
 			`tt0`.`recipe_id` = `t0`.`id` AND
-			`tt0`.`tag_id` = :b2
-		) AND
-	EXISTS (
+			`tt0`.`tag_id` = `tt1`.`id` AND
+			`tt1`.`id` = :b1
+		)) AND
+	(EXISTS (
 		SELECT
 			1
 		FROM
 			`recipe_tag` AS `tt0`
+			CROSS JOIN `tag` AS `tt1`
 		WHERE
 			`tt0`.`recipe_id` = `t0`.`id` AND
-			`tt0`.`tag_id` = :b3
-		)
+			`tt0`.`tag_id` = `tt1`.`id` AND
+			`tt1`.`id` = :b2
+		))
 ORDER BY
-	`t0`.`id`
+	`t0`.`id` ASC
 LIMIT 0, 7 */

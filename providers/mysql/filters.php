@@ -104,20 +104,14 @@ class UnaryFilterExpression extends Filter {
 class BinaryFilterExpression extends Filter implements IEqualityFilterExpression {
 	function __construct(IQueryPart $operand1, $operand2, $operator, $indent) {
 		$this->operand1 = $operand1;
-		$this->operand2 = $operand2;
+		$this->operand2 = (is_string($operand2) or is_numeric($operand2)) ? new UserConstantField($operand2) : $operand2;
 		$this->operator = $operator;
 		$this->indent = $indent;
 	}
 
 	public function evaluate(ISqlQueryBuilder $queryBuilder) {
 		$part1 = $this->operand1->evaluate($queryBuilder);
-
-		if (is_string($this->operand2) or is_numeric($this->operand2))
-			$part2 = $queryBuilder->addBinding($this->operand2);
-		elseif (is_object($this->operand2) and get_class($this->operand2) === 'DarkRoast\Placeholder')
-			$part2 = ":_" . $this->operand2->index();
-		else
-			$part2 = $this->operand2->evaluate($queryBuilder);
+		$part2 = $this->operand2->evaluate($queryBuilder);
 
 		if ($part1 !== '' and $part2 !== '')
 			return $part1 . " {$this->operator}" . ($this->indent ? $queryBuilder->indent(1) : ' ') . $part2;

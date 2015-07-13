@@ -263,5 +263,9 @@ class DataProvider implements IBuilder {
 		return count($tables) > 1 ? $tables : reset($tables);
 	}
 
+	public function placeholder($index) {
+		return new Placeholder($index);
+	}
+	
 	private $pdo;
 }
