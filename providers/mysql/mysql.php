@@ -123,36 +123,39 @@ class SqlQueryBuilder implements ISqlQueryBuilder {
 		}
 
 		foreach ($this->userTables as $tableQuery) {
-			$builder = $this->createChild();
+			$builder = $this->createChild(1);
 			$userTableSql = $tableQuery->build($builder);
-			$fromClause[] = "( {$userTableSql} ) AS {$this->userTables[$tableQuery]}";
+			$fromClause[] = "( {$userTableSql}" . $this->indent(1) . ") AS {$this->userTables[$tableQuery]}";
 		}
 
 		$query = $this->indent(0, $this->indentationLevel > 0) .
 		         "SELECT" . $this->indent(1) .
 		         implode(',' . $this->indent(1), $selectClauses) . $this->indent(0) .
 		         "FROM" . $this->indent(1) .
-		         implode($this->indent(1) . "CROSS JOIN ", $fromClause) . $this->indent(0);
+		         implode($this->indent(1) . "CROSS JOIN ", $fromClause);
 
 		if (isset($whereClause))
-			$query .= "WHERE" . $this->indent(1) . $whereClause . $this->indent(0);
+			$query .= $this->indent(0) . "WHERE" . $this->indent(1) . $whereClause;
 
 		if (count($this->groupingFields)) {
-			$query .= "GROUP BY" . $this->indent(1) .
-			          implode(',' . $this->indent(1), array_keys($this->groupingFields)) . $this->indent(0);
+			$query .= $this->indent(0) . "GROUP BY" . $this->indent(1) .
+			          implode(',' . $this->indent(1), array_keys($this->groupingFields));
 		}
 
 		if (isset($havingClause))
-			$query .= "HAVING " . $this->indent(1) . $havingClause . $this->indent(0);
+			$query .=  $this->indent(0) . "HAVING " . $this->indent(1) . $havingClause;
 
 		if (count($orderClause) > 0) {
-			$query .= "ORDER BY" . $this->indent(1) .
-			          implode(",\n\t", $orderClause) . $this->indent(0);
+			$query .= $this->indent(0) . "ORDER BY" . $this->indent(1) .
+			          implode(",\n\t", $orderClause);
 		}
 
 		if ($window[0] > 0 or isset($window[1])) {
-			$query .= "LIMIT {$window[0]}" . (isset($window[1]) ? ", {$window[1]}" : "");
+			$query .= $this->indent(0) . "LIMIT {$window[0]}" . (isset($window[1]) ? ", {$window[1]}" : "");
 		}
+
+		if (is_null($this->parent))
+			$query .= "\n";
 
 		return $query;
 	}

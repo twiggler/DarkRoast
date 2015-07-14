@@ -154,7 +154,11 @@ class ExistsFilter extends Filter implements IQueryPart {
 		$subQueryBuilder = $queryBuilder->createChild(1);
 		$subQuerySql = $subQueryBuilder->build([new ConstantField(1)], $this->condition);
 
-		return "EXISTS (" . $subQuerySql . ")";
+		return "EXISTS (" . $subQuerySql . $queryBuilder->indent(1) . ")";
+	}
+
+	public function parenthesis() {
+		return $this;
 	}
 
 	private $condition;

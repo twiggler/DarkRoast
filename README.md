@@ -54,7 +54,7 @@ The methods `name`, `sortAscending`, or`sortDescending` are meant to be used at 
 To join a table multiple times, you need to copy it first using `copy()`; the resulting table expression can now be used in queries.
 Example:
 ```
-$recipe = $recipe->copy();
+$recipe2 = $recipe->copy();
 select($recipe['cook_time'],
        $recipe2['marinate_time'])
         ->filter($recipe['id']->equals($recipe2['id']));
