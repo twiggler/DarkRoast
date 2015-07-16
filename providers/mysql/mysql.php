@@ -6,6 +6,7 @@ require_once('fields.php');
 
 use DarkRoast\IBuilder;
 use DarkRoast\IDarkRoast;
+use DarkRoast\IDataProvider;
 
 class Table implements \ArrayAccess {
 	function __construct($identifier, array $fields = []) {
@@ -88,7 +89,7 @@ class DarkRoast implements IDarkRoast {
 }
 
 class SqlQueryBuilder implements ISqlQueryBuilder {
-	function __construct(DataProvider $provider) {
+	function __construct(IDataProvider $provider) {
 		$this->provider = $provider;
 		$this->tableAliases = new \SplObjectStorage();
 		$this->userTables = new \SplObjectStorage();
@@ -226,7 +227,7 @@ class SqlQueryBuilder implements ISqlQueryBuilder {
 	private $sortFields = null;
 }
 
-class DataProvider implements IBuilder {
+class DataProvider implements IBuilder, IDataProvider {
 	function __construct(\PDO $pdo) {
 		$this->pdo = $pdo;
 	}

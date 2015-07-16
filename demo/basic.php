@@ -7,8 +7,6 @@ use function DarkRoast\exists as exists;
 use function DarkRoast\sum as sum;
 use function DarkRoast\coalesce as coalesce;
 use DarkRoast\MySQL\DataProvider as DataProvider;
-use DarkRoast\Placeholders as Placeholders;
-
 
 $pdo = new PDO('mysql:host=localhost; dbname=recipe', "dev", "Ig8ajGd1vtZZSaa99kvZ");
 $provider = new DataProvider($pdo);
@@ -25,26 +23,18 @@ $query = select($recipe['id']->sortAscending(),
 $cookingTime = sum($recipe['prep_time'], $recipe['cook_time'], $recipe['prove_time'], $recipe['marinate_time'],
                    $recipe['rest_time'], $recipe['chill_time'], $recipe['soak_time']);    // Define a new field
 
-if (isset($params['maxcalories']))
-	$query->filter($recipe['kcals']->lessThan($params['maxcalories']));
-
-// The placeholder is bound on query execution.
-// Query::_and calls Query::filter when no filter is set.
-$query->_and($cookingTime->lessOrEqualThan($provider->placeholder(1)));
-
-$query->_and($recipe['group']->equals(coalesce($params, 'group',
-                                             null))); // Filter is optimized away when operand is null.
+$query->filter($recipe['kcals']->lessThan(coalesce($params, 'maxcalories')), // Filter is optimized away when operand is null.
+	           $cookingTime->lessOrEqualThan($provider->placeholder(1)), // The placeholder is bound on query execution.
+	           $recipe['group']->equals(coalesce($params, 'group')),
+	           $recipe['video']->equals(isset($params['video']) ? 1 : null),
+	           $recipe['id']->isDefined());     // Multiple filter expressions are by default combined using the and operator
 
 
-$query->_and($recipe['video']->equals(isset($params['video']) ? 1 : null),
-             $recipe['id']->isDefined());     // Multiple filter expressions are by default combined using the and operator
-
-if (isset($params['tag'])) {
-	foreach ($params['tag'] as $tagId) {
-		$existsFilter = exists($recipe_tag['recipe_id']->equals($recipe['id']),
-		                       $recipe_tag['tag_id']->equals($tag['id'])->equals($tagId));
-		$query->_and($existsFilter);
-	}
+foreach (coalesce($params, 'tag', []) as $tagId) {
+	$existsFilter = exists($recipe_tag['recipe_id']->equals($recipe['id']),
+	                       $recipe_tag['tag_id']->equals($tag['id'])
+	                                            ->equals($tagId));
+	$query->_and($existsFilter);
 }
 
 $query->window($params['offset'], coalesce($params, 'limit'));

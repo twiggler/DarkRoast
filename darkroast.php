@@ -2,14 +2,13 @@
 
 namespace DarkRoast;
 
-use DarkRoast\MySQL\BinaryFilterExpression;
-use DarkRoast\MySQL\NullFilter;
+require_once('IDataProvider.php');
 
 interface IDarkRoast {
 	/**
 	 * Execute the build query and returns the result as an array.
 	 * When the query contains placeholders, invoke this function with unbound arguments. Each placeholder
-	 * _N is replaced by the Nth argument.
+	 * N is replaced by the Nth argument.
 	 * @param mixed ...$bindings Bound values for placeholders.
 	 * @return array Result tuple.
 	 */
@@ -153,6 +152,11 @@ class Query {
 		return $darkRoast->execute(...$params);
 	}
 
+	/** Specify a window in the result tuple.
+	 * @param $offset
+	 * @param null $limit
+	 * @return $this
+	 */
 	public function window($offset, $limit = null) {
 		if (!is_int($offset)) throw new \InvalidArgumentException('Offset must be an integer.');
 		if ($offset < 0) throw new \DomainException('Offset must be positive');
@@ -190,7 +194,18 @@ function select(ITerminalFieldExpression ...$fields) {
     return $query->select(...$fields);
 }
 
-function table(Query $query, $provider) {
+/**
+ * Constructs a table expression from a query.
+ * The fields of the resulting table expression are defined by the selectors of the source query, and are applicable everywhere
+ * where regular fields can be used.
+ * If the x*th* selector is unnamed and no name can be inferred, the corresponding field in the table expression is named `UserField{x}`.
+ * Note that execution of the source query is deferred and tied to execution of the query using the table expression.
+ * For DBMS providers, table expressions are typically implemented as (correlated) sub-queries.
+ * @param Query $query
+ * @param IDataProvider $provider
+ * @return mixed
+ */
+function table(Query $query, IDataProvider $provider) {
 	return $query->table($provider);
 }
 
@@ -206,6 +221,17 @@ function sum(ITerminalFieldExpression ...$fields) {
 	}, ...$fields);
 }
 
+
+/**
+ * Constructs an exists filter from one or multiple filter expressions which are concatenated using the logical `and` operator.
+ * The resulting filter expressions is evaluated in the context of an anonymous table expression for each row of the enclosing query.
+ * Any row of the enclosing query for which the table expression result tuple is empty is filtered out.
+ * The exists filter is most useful when the supplied conditions correlate with the outer query.
+ * @example "demo/basic.php" Exist filter in action.
+ *
+ * @param IFilter ...$conditions
+ * @return mixed
+ */
 function exists(IFilter ...$conditions) {
 	$firstCondition = array_shift($conditions);
 	$condition = array_reduce($conditions, function($filter, $condition) {
@@ -214,7 +240,6 @@ function exists(IFilter ...$conditions) {
 
 	return $condition->exists();
 }
-
 function coalesce(array $array, $key, $default = null) {
 	return isset($array[$key]) ? $array[$key] : $default;
 }
