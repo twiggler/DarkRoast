@@ -8,6 +8,8 @@ use DarkRoast\IBuilder as IBuilder;
 
 interface IQueryPart {
 	public function evaluate(ISqlQueryBuilder $queryBuilder);
+
+	public function isAggregate();
 }
 
 interface ISqlQueryBuilder extends IBuilder {

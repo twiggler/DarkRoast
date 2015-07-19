@@ -152,9 +152,10 @@ class Query {
 		return $darkRoast->execute(...$params);
 	}
 
-	/** Specify a window in the result tuple.
-	 * @param $offset
-	 * @param null $limit
+	/**
+	 * Restrict the result of the query to rows [`$offset`, `$offset + $limit - 1`].
+	 * @param int $offset Must be positive.
+	 * @param int|null $limit Must be positive.
 	 * @return $this
 	 */
 	public function window($offset, $limit = null) {

@@ -105,6 +105,8 @@ class SqlQueryBuilder implements ISqlQueryBuilder {
 	}
 
 	public function build($selectors, $filter = null, $groupFilter = null, $window = [0, null]) {
+		$this->validateQuery($selectors, $filter, $groupFilter);
+
 		$selectClauses = array_map(function ($queryElement) {
 			return $queryElement->evaluate($this);
 		}, $selectors);
@@ -135,7 +137,7 @@ class SqlQueryBuilder implements ISqlQueryBuilder {
 		         "FROM" . $this->indent(1) .
 		         implode($this->indent(1) . "CROSS JOIN ", $fromClause);
 
-		if (isset($whereClause))
+		if (!empty($whereClause))
 			$query .= $this->indent(0) . "WHERE" . $this->indent(1) . $whereClause;
 
 		if (count($this->groupingFields)) {
@@ -155,8 +157,7 @@ class SqlQueryBuilder implements ISqlQueryBuilder {
 			$query .= $this->indent(0) . "LIMIT {$window[0]}" . (isset($window[1]) ? ", {$window[1]}" : "");
 		}
 
-		if (is_null($this->parent))
-			$query .= "\n";
+		if (is_null($this->parent)) $query .= "\n";
 
 		return $query;
 	}
@@ -214,6 +215,22 @@ class SqlQueryBuilder implements ISqlQueryBuilder {
 
 	public function bindings() {
 		return $this->bindings;
+	}
+
+	private static function validateQuery($selectors, $filter, $groupFilter) {
+		if (is_null($selectors)) throw new \InvalidArgumentException('At least one selector is required.');
+
+		$aggregatedQuery = reset($selectors)->isAggregate();
+		while ($selector = next($selectors)) {
+			if ($selector->isAggregate() xor $aggregatedQuery)
+				throw new \InvalidArgumentException('Aggregate and non-aggregate fields cannot be mixed.');
+		}
+
+		if (isset($filter) and $filter->isAggregate())
+			throw new \InvalidArgumentException('Filter is a group filter.');
+
+		if (isset($groupFilter) and $groupFilter->isAggregate() === FALSE)
+			throw new \InvalidArgumentException('Group filter is a filter');
 	}
 
 	private $parent = null;

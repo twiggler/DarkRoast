@@ -38,6 +38,10 @@ class ReorderedFilterExpression extends Filter {
 		return "(" . $this->field->evaluate($queryBuilder) . ")";
 	}
 
+	public function isAggregate() {
+		return $this->field->isAggregate();
+	}
+
 	private $field;
 }
 
@@ -77,6 +81,10 @@ class NullFilter implements IQueryPart, IFilter {
 	public function greaterThan($operand) {
 		return $this;
 	}
+
+	public function isAggregate() {
+		return null;
+	}
 }
 
 class UnaryFilterExpression extends Filter {
@@ -96,6 +104,11 @@ class UnaryFilterExpression extends Filter {
 			return "{$this->operator} " . $this->operand->evaluate($queryBuilder);
 	}
 
+	public function isAggregate() {
+		return $this->operand->isAggregate();
+	}
+
+
 	private $postfix;
 	private $operator;
 	private $operand;
@@ -103,6 +116,12 @@ class UnaryFilterExpression extends Filter {
 
 class BinaryFilterExpression extends Filter implements IEqualityFilterExpression {
 	function __construct(IQueryPart $operand1, $operand2, $operator, $indent) {
+		$part1 = $operand1->isAggregate();
+		$part2 = $operand1->isAggregate();
+		if (isset($part1) and isset($part2) and ($part1 xor $part2))
+			throw new \InvalidArgumentException("Cannot mix aggregation and non-aggregation field expressions.");
+		$this->isAggregate = (!isset($part1) and !isset($part2)) ? null : ($part1 or $part2);
+
 		$this->operand1 = $operand1;
 		$this->operand2 = (is_string($operand2) or is_numeric($operand2)) ? new UserConstantField($operand2) : $operand2;
 		$this->operator = $operator;
@@ -139,6 +158,11 @@ class BinaryFilterExpression extends Filter implements IEqualityFilterExpression
 		return $this->_and($this->operand2->greaterOrEqualThan($operand));
 	}
 
+	public function isAggregate() {
+		return $this->isAggregate;
+	}
+
+	private $isAggregate;
 	private $operand1;
 	private $operand2;
 	private $operator;
@@ -146,7 +170,7 @@ class BinaryFilterExpression extends Filter implements IEqualityFilterExpression
 }
 
 class ExistsFilter extends Filter implements IQueryPart {
-	function __construct($condition) {
+	function __construct(IFilter $condition) {
 		$this->condition = $condition;
 	}
 
@@ -159,6 +183,10 @@ class ExistsFilter extends Filter implements IQueryPart {
 
 	public function parenthesis() {
 		return $this;
+	}
+
+	public function isAggregate() {
+		return $this->condition->isAggregate();
 	}
 
 	private $condition;

@@ -47,6 +47,10 @@ abstract class FieldFilterExpression extends TerminalFieldExpression implements 
 	public function isUndefined() {
 		return new UnaryFilterExpression($this, 'is null', UnaryFilterExpression::POSTFIX);
 	}
+
+	public function isAggregate() {
+		return false;
+	}
 }
 
 class TerminalField implements IQueryPart, ITerminalFieldExpression {
@@ -91,6 +95,10 @@ class TerminalField implements IQueryPart, ITerminalFieldExpression {
 			$fieldExpression .= " AS {$this->alias}";
 
 		return $fieldExpression;
+	}
+
+	public function isAggregate() {
+		return $this->field->isAggregate();
 	}
 
 	private $field;

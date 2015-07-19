@@ -57,6 +57,10 @@ abstract class AggregatableExpression extends FieldExpression implements IAggreg
 	public function group() {
 		return new GroupingField($this);
 	}
+
+	public function isAggregate() {
+		return false;
+	}
 }
 
 class Field extends AggregatableExpression {
@@ -124,6 +128,11 @@ class AggregatedField extends FieldFilterExpression {
 		return $this;
 	}
 
+	public function isAggregate() {
+		return true;
+	}
+
+
 	private $field;
 }
 
@@ -138,18 +147,26 @@ class BinaryFieldExpression extends AggregatableExpression {
 		return $this->field1->evaluate($queryBuilder) . " {$this->operator} " . $this->field2->evaluate($queryBuilder);
 	}
 
+	public function isAggregate() {
+		return $this->field1->isAggregate() or $this->field2->isAggregate();
+	}
+
 	private $field1;
 	private $field2;
 	private $operator;
 }
 
 class ReorderedFieldExpression extends AggregatableExpression {
-	function __construct($field) {
+	function __construct(FieldFilterExpression $field) {
 		$this->field = $field;
 	}
 
 	public function evaluate(ISqlQueryBuilder $queryBuilder) {
 		return "(" . $this->field->evaluate($queryBuilder) . ")";
+	}
+
+	public function isAggregate() {
+		return $this->field->isAggregate();
 	}
 
 	private $field;
@@ -208,6 +225,10 @@ class Aggregation extends FieldExpression { // TODO Improve naming with respect 
 		return "{$this->function}(" . ($this->distinct ? 'DISTINCT' : '') . $this->field->evaluate($queryBuilder) . ")";
 	}
 
+	public function isAggregate() {
+		return true;
+	}
+
 	private $field;
 	private $function;
 	private $distinct;
@@ -227,6 +248,10 @@ class GroupingField extends FieldExpression {
 
 	public function alias() {
 		return $this->field->alias();
+	}
+
+	public function isAggregate() {
+		return true;
 	}
 
 	private $field;
