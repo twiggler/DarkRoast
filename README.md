@@ -1,4 +1,4 @@
-*Dark Roast is not ready for production. There are most likely security issues, performance problems, and major bugs. In addition, the API is subject to change.* 
+*Dark Roast is not ready for production. There are most likely security issues, performance problems, and major bugs.* 
 
 #Requirements
 Dark Roast requires Php 5.6. No effort will be made to support older versions of Php. Dark Roast will use Php language features as made available in future Php releases. No effort will be made to remain backwards compatible. 
@@ -13,9 +13,9 @@ Dark Roast is a query builder for Php to retrieve data from data sources such as
 Dark Roast is best used to build dynamic queries. Dynamic means that the structure of the query depends on variables which are bound at run-time.
 
 #Concepts
-*Fields* are columns of data which are grouped into *tables*. Tables reside in data sources. *Selectors* specify which fields to retrieve. Selected columns of data (fields) from the same table are concatenated to form the *result tuple*. Selected fields from different tables are concatenated in a manner analogous to the cartesian product, e.g. as in a SQL CROSS JOIN. *Filters* indicate which rows of the result tuple to keep.
+*Fields* are columns of data which are grouped into *tables*. Tables reside in data sources. *Selectors* define the columns of the query output table, typically by referencing fields. The associated tables of the fields referenced in the query selectors are automatically concatenated in a manner analogous to the cartesian product to form the *source table*, e.g. as in a SQL CROSS JOIN. *Filters* indicate which rows of the *source table* to keep in the final query output.
 
-A *data provider* makes fields defined in data sources such as databases accessible to Dark Roast.
+A *data provider* makes fields defined in data sources such as databases accessible to Dark Roast. Currently, only a MySQL data provider is implemented.
  
 #Quick start
 ##Basic

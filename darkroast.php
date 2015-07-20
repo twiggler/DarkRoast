@@ -10,7 +10,7 @@ interface IDarkRoast {
 	 * When the query contains placeholders, invoke this function with unbound arguments. Each placeholder
 	 * N is replaced by the Nth argument.
 	 * @param mixed ...$bindings Bound values for placeholders.
-	 * @return array Result tuple.
+	 * @return array Query output table.
 	 */
 	public function execute(...$bindings);
 }
@@ -85,16 +85,23 @@ interface IFilter extends IReorderable {
 
 class Query {
 	/**
-	 * Add selectors to query.
-	 * @param ITerminalFieldExpression ...$fields Selectors to add.
+	 * Add selectors to existing selectors of query.
+	 * @param ITerminalFieldExpression ...$selectors Selectors to add.
 	 * @return $this
 	 */
-	public function select(ITerminalFieldExpression ...$fields) {
-        $this->selectors = array_merge($this->selectors, $fields);
+	public function select(ITerminalFieldExpression ...$selectors) {
+        $this->selectors = array_merge($this->selectors, $selectors);
 
         return $this;
     }
 
+	/**
+	 * Construct and overwrite the query filter by concatenating the `$conditions` using the logical and operator.
+	 * The filter is evaluated for of all rows before aggregation has taken place. It may therefore only depend on non-aggregate
+	 * field expressions.
+	 * @param IFilter ...$conditions
+	 * @return $this
+	 */
     public function filter(IFilter ...$conditions) {
 		$this->filter = null;
 		$this->_and(...$conditions);
@@ -102,6 +109,13 @@ class Query {
         return $this;
     }
 
+	/**
+	 * Construct and overwrite the query group filter by concatenating the `$conditions` using the logical and operator.
+	 * The group filter is evaluated for all aggregate rows, after aggregation has taken place. It may not depend on non-aggregate
+	 * field expressions.
+	 * @param IFilter ...$conditions
+	 * @return $this
+	 */
 	public function groupFilter(IFilter ...$conditions) {
 		$this->groupFilter = null;
 		$this->addConditions($conditions, "_and", $this->groupFilter);
@@ -145,7 +159,7 @@ class Query {
 	 * @param ...$params mixed Unbound arguments forwarded to IDarkRoast::execute
 	 * @see Query::build
 	 * @see IDarkRoast::execute
-	 * @return array Result tuple
+	 * @return array Query output table.
 	 */
 	public function execute(IBuilder $builder, ...$params) {
 		$darkRoast = $this->build($builder);
@@ -153,9 +167,10 @@ class Query {
 	}
 
 	/**
-	 * Restrict the result of the query to rows [`$offset`, `$offset + $limit - 1`].
+	 * Limit the result of the query to at most rows [`$offset`, `$offset + $limit - 1`].
+	 * If `$limit` is null, all rows including and after `$offset` are returned when executing the query.
 	 * @param int $offset Must be positive.
-	 * @param int|null $limit Must be positive.
+	 * @param int|null $limit Must be positive or null.
 	 * @return $this
 	 */
 	public function window($offset, $limit = null) {
@@ -186,13 +201,14 @@ class Query {
 }
 
 /**
- * @param ...$fields
+ * Construct a new query with the specified selectors.
+ * @param ITerminalFieldExpression ...$selectors
  * @return Query
  */
-function select(ITerminalFieldExpression ...$fields) {
+function select(ITerminalFieldExpression ...$selectors) {
     $query = new Query();
 
-    return $query->select(...$fields);
+    return $query->select(...$selectors);
 }
 
 /**
@@ -200,7 +216,7 @@ function select(ITerminalFieldExpression ...$fields) {
  * The fields of the resulting table expression are defined by the selectors of the source query, and are applicable everywhere
  * where regular fields can be used.
  * If the x*th* selector is unnamed and no name can be inferred, the corresponding field in the table expression is named `UserField{x}`.
- * Note that execution of the source query is deferred and tied to execution of the query using the table expression.
+ * Note that execution of the table expression is deferred and tied to execution of the outer query.
  * For DBMS providers, table expressions are typically implemented as (correlated) sub-queries.
  * @param Query $query
  * @param IDataProvider $provider
@@ -226,7 +242,7 @@ function sum(ITerminalFieldExpression ...$fields) {
 /**
  * Constructs an exists filter from one or multiple filter expressions which are concatenated using the logical `and` operator.
  * The resulting filter expressions is evaluated in the context of an anonymous table expression for each row of the enclosing query.
- * Any row of the enclosing query for which the table expression result tuple is empty is filtered out.
+ * Any row of the enclosing query for which the table expression returns nothing output is filtered out.
  * The exists filter is most useful when the supplied conditions correlate with the outer query.
  * @example "demo/basic.php" Exist filter in action.
  *
@@ -241,10 +257,16 @@ function exists(IFilter ...$conditions) {
 
 	return $condition->exists();
 }
+
 function coalesce(array $array, $key, $default = null) {
 	return isset($array[$key]) ? $array[$key] : $default;
 }
 
+/**
+ * Group parts of a field or filter expression to change order of operations.
+ * @param IReorderable $queryElement
+ * @return mixed
+ */
 function p(IReorderable $queryElement) {
 	return $queryElement->parenthesis();
 }

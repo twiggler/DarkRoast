@@ -132,23 +132,22 @@ class AggregatedField extends FieldFilterExpression {
 		return true;
 	}
 
-
 	private $field;
 }
 
 class BinaryFieldExpression extends AggregatableExpression {
 	function __construct(IQueryPart $field1, $field2, $operator) {
 		$this->field1 = $field1;
-		$this->field2 = (is_string($field2) or is_numeric($field2)) ? new UserConstantField($field2) : $field2;
+		$this->field2 = $field2;
 		$this->operator = $operator;
 	}
 
 	public function evaluate(ISqlQueryBuilder $queryBuilder) {
-		return $this->field1->evaluate($queryBuilder) . " {$this->operator} " . $this->field2->evaluate($queryBuilder);
+		return $this->field1->evaluate($queryBuilder) . " {$this->operator} " . evaluate($this->field2, $queryBuilder);
 	}
 
 	public function isAggregate() {
-		return $this->field1->isAggregate() or $this->field2->isAggregate();
+		return $this->field1->isAggregate() or isAggregate($this->field2);
 	}
 
 	private $field1;
@@ -202,18 +201,6 @@ class ConstantField extends FieldExpression {
 	private $expression;
 }
 
-class UserConstantField extends FieldExpression {
-	function __construct($expression) {
-		$this->expression = $expression;
-	}
-
-	public function evaluate(ISqlQueryBuilder $queryBuilder) {
-		return $queryBuilder->addBinding($this->expression);
-	}
-
-	private $expression;
-}
-
 class Aggregation extends FieldExpression { // TODO Improve naming with respect to AggregatedField
 	function __construct(FieldExpression $field, $function, $distinct) {
 		$this->field = $field;
@@ -255,6 +242,30 @@ class GroupingField extends FieldExpression {
 	}
 
 	private $field;
+}
+
+class RecodedField extends AggregatableExpression {
+	function __construct(array $map, $_default) {
+		$this->map = $map;
+		$this->_default = $_default;
+	}
+
+	public function evaluate(ISqlQueryBuilder $queryBuilder) {
+		$cases = array_map(function(array $element) use ($queryBuilder) {
+			return 'WHEN ' . $element[0]->evaluate($queryBuilder) . ' THEN ' . evaluate($element[1], $queryBuilder);
+		}, $this->map);
+
+		$part = 'CASE' . $queryBuilder->indent(2) . implode($queryBuilder->indent(2), $cases);
+		if (isset($this->_default))
+			$part .= $queryBuilder->indent(2) . 'ELSE ' . evaluate($this->_default, $queryBuilder);
+		$part .= $queryBuilder->indent(1) . 'END';
+
+		return $part;
+	}
+
+
+	private $map;
+	private $_default;
 }
 
 class Placeholder extends FieldExpression {

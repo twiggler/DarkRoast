@@ -287,6 +287,19 @@ class DataProvider implements IBuilder, IDataProvider {
 	public function placeholder($index) {
 		return new Placeholder($index);
 	}
-	
+
+	public function recode(array $map, $_default) {
+		return new RecodedField($map, $_default);
+	}
+
 	private $pdo;
+}
+
+function evaluate($queryPart, $queryBuilder) {
+	return (is_string($queryPart) or is_numeric($queryPart)) ? $queryBuilder->addBinding($queryPart) :
+															   $queryPart->evaluate($queryBuilder);
+}
+
+function isAggregate($queryPart) {
+	return (is_string($queryPart) or is_numeric($queryPart)) ? null : $queryPart->isAggregate($queryPart);
 }

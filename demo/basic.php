@@ -14,14 +14,19 @@ list($recipe, $recipe_tag, $tag) = $provider->reflectTable('recipe', 'recipe_tag
 
 $params = ['offset' => 0, 'tag' => [38, 39], 'video' => 'ja', 'limit' => 7];
 
-$query = select($recipe['id']->sortAscending(),
-                $recipe['title'],
-                $recipe['image_url']->name('imageUrl'),     // Field is designated 'imageUrl' in result tuple
-                $recipe['summary'],
-                $recipe['ingredients']);
-
 $cookingTime = sum($recipe['prep_time'], $recipe['cook_time'], $recipe['prove_time'], $recipe['marinate_time'],
                    $recipe['rest_time'], $recipe['chill_time'], $recipe['soak_time']);    // Define a new field
+$foodType = $provider->recode([[$cookingTime->lessThan(10), 'Fast-food'],
+                               [$cookingTime->greaterThan(60), 'Slow-food']],
+                              'Normal food'); // Default
+
+
+$query = select($recipe['id']->sortAscending(),
+                $recipe['title'],
+				$foodType->name('foodType'),
+                $recipe['image_url']->name('imageUrl'),     // Field is designated 'imageUrl' in output
+                $recipe['summary'],
+                $recipe['ingredients']);
 
 $query->filter($recipe['kcals']->lessThan(coalesce($params, 'maxcalories')), // Filter is optimized away when operand is null.
 	           $cookingTime->lessOrEqualThan($provider->placeholder(1)), // The placeholder is bound on query execution.
@@ -40,7 +45,7 @@ foreach (coalesce($params, 'tag', []) as $tagId) {
 $query->window($params['offset'], coalesce($params, 'limit'));
 
 $darkRoast = $query->build($provider);
-print_r($darkRoast->execute(60));           // cookingTime is less than 60 minutes.
+print_r($darkRoast->execute(120));           // cookingTime is less than 60 minutes.
 echo $darkRoast->querySource();
 
 /* Generated Query:

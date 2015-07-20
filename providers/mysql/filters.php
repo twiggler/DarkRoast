@@ -117,20 +117,20 @@ class UnaryFilterExpression extends Filter {
 class BinaryFilterExpression extends Filter implements IEqualityFilterExpression {
 	function __construct(IQueryPart $operand1, $operand2, $operator, $indent) {
 		$part1 = $operand1->isAggregate();
-		$part2 = $operand1->isAggregate();
+		$part2 = isAggregate($operand2);
 		if (isset($part1) and isset($part2) and ($part1 xor $part2))
 			throw new \InvalidArgumentException("Cannot mix aggregation and non-aggregation field expressions.");
 		$this->isAggregate = (!isset($part1) and !isset($part2)) ? null : ($part1 or $part2);
 
 		$this->operand1 = $operand1;
-		$this->operand2 = (is_string($operand2) or is_numeric($operand2)) ? new UserConstantField($operand2) : $operand2;
+		$this->operand2 = $operand2;
 		$this->operator = $operator;
 		$this->indent = $indent;
 	}
 
 	public function evaluate(ISqlQueryBuilder $queryBuilder) {
 		$part1 = $this->operand1->evaluate($queryBuilder);
-		$part2 = $this->operand2->evaluate($queryBuilder);
+		$part2 = evaluate($this->operand2, $queryBuilder);
 
 		if ($part1 !== '' and $part2 !== '')
 			return $part1 . " {$this->operator}" . ($this->indent ? $queryBuilder->indent(1) : ' ') . $part2;

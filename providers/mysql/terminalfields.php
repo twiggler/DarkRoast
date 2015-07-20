@@ -2,6 +2,8 @@
 
 namespace DarkRoast\MySQL;
 
+require_once('ISqlQueryBuilder.php');
+
 use DarkRoast\IFieldExpression;
 use DarkRoast\ITerminalFieldExpression;
 

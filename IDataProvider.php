@@ -6,5 +6,7 @@ interface IDataProvider {
 
 	public function reflectTable(...$tableNames);
 
+	public function recode(array $map, $_default);
+
 	public function placeholder($index);
 }
